@@ -230,10 +230,12 @@ export function getExportCsvUrl(scanId: string, includeSuppressed: boolean = fal
 // AI
 // ---------------------------------------------------------------------------
 
+// Sends only identifiers — the server reads the finding from the scan store,
+// so the endpoint can't be used as a general-purpose Gemini proxy.
 export function explainFinding(finding: Finding): Promise<{ explanation: string }> {
   return apiFetch<{ explanation: string }>('/ai/explain', {
     method: 'POST',
-    body: JSON.stringify({ finding }),
+    body: JSON.stringify({ scan_id: finding.scan_id, finding_id: finding.id }),
   });
 }
 

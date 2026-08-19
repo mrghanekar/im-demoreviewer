@@ -119,7 +119,16 @@ app.add_middleware(BodySizeLimitMiddleware, max_bytes=settings.max_request_body_
 app.add_middleware(RequestIdMiddleware)
 
 # CORS — same-origin in production (Cloud Run); explicit dev origins locally.
-# allow_credentials=True is incompatible with allow_origins=["*"], so we never widen origins here.
+# allow_credentials=True with a wildcard origin makes Starlette reflect whatever
+# Origin the caller sends, turning every endpoint into a credentialed
+# cross-origin target. cors_origins is operator-settable via DR_CORS_ORIGINS, so
+# enforce the invariant here rather than relying on a comment.
+if "*" in settings.cors_origins:
+    raise RuntimeError(
+        "DR_CORS_ORIGINS must not contain '*' while credentials are allowed. "
+        "List explicit origins instead."
+    )
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,

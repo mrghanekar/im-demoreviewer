@@ -54,6 +54,11 @@ class Settings(BaseSettings):
 
     # Export configuration
     gcs_export_bucket: str = ""
+    # Additional buckets the export endpoint may write to. The export payload is
+    # a full inventory of the estate, so an unconstrained bucket parameter is an
+    # exfiltration channel — callers may only target buckets named here or in
+    # gcs_export_bucket.
+    gcs_export_bucket_allowlist: List[str] = []
 
     # Engine configuration
     max_concurrent_checks: int = 10
@@ -64,6 +69,7 @@ class Settings(BaseSettings):
 
     # AI configuration — only Gemini 3-series models are allowed.
     ai_model: str = "gemini-3-flash"
+    ai_timeout_seconds: int = 120
 
     # App metadata
     app_name: str = "Democratized Reviewer"

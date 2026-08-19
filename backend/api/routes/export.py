@@ -17,6 +17,7 @@ from backend.core.scanner import ScanStore
 from backend.api.routes.scan import get_store
 from backend.utils.report_generator import generate_html_report, generate_pdf_report
 from backend.api.middleware.validation import validate_bucket_name
+from backend.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,39 @@ MAX_EXPORT_SIZE_BYTES = 5 * 1024 * 1024 * 1024  # 5 GB
 def _estimate_scan_size(scan) -> int:
     """Estimate the serialized size of a scan in bytes."""
     return sys.getsizeof(scan.model_dump_json())
+
+
+def _allowed_export_buckets() -> set[str]:
+    """Buckets the export endpoint is permitted to write to."""
+    allowed = {b.strip().lower() for b in settings.gcs_export_bucket_allowlist if b.strip()}
+    if settings.gcs_export_bucket:
+        allowed.add(settings.gcs_export_bucket.strip().lower())
+    return allowed
+
+
+def _require_allowed_bucket(bucket: str) -> str:
+    """Reject export targets outside the configured allowlist.
+
+    An export is a full inventory of the estate — resource names, project IDs,
+    misconfigurations. Without this an attacker could name their own bucket and
+    have the server's service account push the whole report out of the org.
+    """
+    allowed = _allowed_export_buckets()
+    if not allowed:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "No export bucket is configured. Set DR_GCS_EXPORT_BUCKET (or "
+                "DR_GCS_EXPORT_BUCKET_ALLOWLIST) before exporting to GCS."
+            ),
+        )
+    if bucket not in allowed:
+        logger.warning("Rejected export to non-allowlisted bucket: %s", bucket)
+        raise HTTPException(
+            status_code=403,
+            detail=f"Bucket '{bucket}' is not an allowed export destination.",
+        )
+    return bucket
 
 
 @router.get("/{scan_id}/export/json")
@@ -187,7 +221,7 @@ async def export_to_gcs(
     cleaned_bucket = validate_bucket_name(bucket)
     if not cleaned_bucket:
         raise HTTPException(status_code=422, detail=f"Invalid GCS bucket name: '{bucket}'")
-    bucket = cleaned_bucket
+    bucket = _require_allowed_bucket(cleaned_bucket)
 
     scan = store.get(scan_id)
     if not scan:

@@ -182,13 +182,8 @@ class TestCatalogAdditions:
 
 @pytest.mark.asyncio
 class TestAiExplainCache:
-    async def test_repeat_request_hits_cache(self, monkeypatch):
-        # Reset cache to a known state for the test
-        from backend.api.routes import ai
-        ai._explain_cache.clear()
-
-        calls = []
-
+    @staticmethod
+    def _stub_vertex(monkeypatch, ai, calls):
         class _FakeResponse:
             text = "explanation about XYZ"
 
@@ -203,10 +198,55 @@ class TestAiExplainCache:
         monkeypatch.setattr(ai, "_init_vertex_once", lambda: "fake-project")
         monkeypatch.setattr(ai, "GenerativeModel", _FakeModel)
 
-        finding = {"id": "scan-0001", "title": "T", "description": "D", "severity": "high",
-                   "category": "security", "resource_name": "r", "current_state": "bad",
-                   "recommended_state": "good"}
-        req = ai.ExplainRequest(finding=finding, model=None)
+    @staticmethod
+    def _seed_scan(monkeypatch, ai):
+        """Put one scan with one finding in the store the route reads from."""
+        from backend.core.models import (
+            Category,
+            Finding,
+            Scan,
+            ScanStatus,
+            Severity,
+        )
+        from backend.core.scanner import ScanStore
+
+        finding = Finding(
+            id="finding-0001",
+            scan_id="scan-0001",
+            check_id="SEC-001",
+            title="T",
+            description="D",
+            severity=Severity.HIGH,
+            category=Category.SECURITY,
+            service="security",
+            resource_name="r",
+            current_state="bad",
+            recommended_state="good",
+        )
+        scan = Scan(
+            id="scan-0001",
+            scope="project",
+            target_id="test-project",
+            status=ScanStatus.COMPLETED,
+            findings=[finding],
+        )
+        store = ScanStore()
+        store.save(scan)
+        monkeypatch.setattr(ai, "get_store", lambda: store)
+        return scan, finding
+
+    async def test_repeat_request_hits_cache(self, monkeypatch):
+        # Reset cache to a known state for the test
+        from backend.api.routes import ai
+        ai._explain_cache.clear()
+
+        calls = []
+        self._stub_vertex(monkeypatch, ai, calls)
+        _, finding = self._seed_scan(monkeypatch, ai)
+
+        req = ai.ExplainRequest(
+            scan_id="scan-0001", finding_id=finding.id, model=None
+        )
 
         r1 = await ai.explain_finding(req)
         r2 = await ai.explain_finding(req)
@@ -214,6 +254,72 @@ class TestAiExplainCache:
         assert r1.explanation == r2.explanation
         # Only the first call should have hit Vertex.
         assert len(calls) == 1
+
+    async def test_unknown_scan_is_rejected_without_calling_vertex(self, monkeypatch):
+        """The endpoint must not be usable as a free Gemini proxy."""
+        from fastapi import HTTPException
+
+        from backend.api.routes import ai
+        ai._explain_cache.clear()
+
+        calls = []
+        self._stub_vertex(monkeypatch, ai, calls)
+        self._seed_scan(monkeypatch, ai)
+
+        req = ai.ExplainRequest(scan_id="no-such-scan", finding_id="finding-0001")
+        with pytest.raises(HTTPException) as exc:
+            await ai.explain_finding(req)
+
+        assert exc.value.status_code == 404
+        assert calls == [], "Vertex was billed for a non-existent scan"
+
+    async def test_unknown_finding_is_rejected_without_calling_vertex(self, monkeypatch):
+        from fastapi import HTTPException
+
+        from backend.api.routes import ai
+        ai._explain_cache.clear()
+
+        calls = []
+        self._stub_vertex(monkeypatch, ai, calls)
+        self._seed_scan(monkeypatch, ai)
+
+        req = ai.ExplainRequest(scan_id="scan-0001", finding_id="not-in-this-scan")
+        with pytest.raises(HTTPException) as exc:
+            await ai.explain_finding(req)
+
+        assert exc.value.status_code == 404
+        assert calls == [], "Vertex was billed for a non-existent finding"
+
+    async def test_explanation_uses_stored_finding_not_caller_text(self, monkeypatch):
+        """Cache-poisoning regression: prompt content comes from the store."""
+        from backend.api.routes import ai
+        ai._explain_cache.clear()
+
+        prompts = []
+
+        class _FakeResponse:
+            text = "ok"
+
+        class _FakeModel:
+            def __init__(self, _name):
+                pass
+
+            async def generate_content_async(self, prompt):
+                prompts.append(prompt)
+                return _FakeResponse()
+
+        monkeypatch.setattr(ai, "_init_vertex_once", lambda: "fake-project")
+        monkeypatch.setattr(ai, "GenerativeModel", _FakeModel)
+        self._seed_scan(monkeypatch, ai)
+
+        await ai.explain_finding(
+            ai.ExplainRequest(scan_id="scan-0001", finding_id="finding-0001")
+        )
+
+        assert len(prompts) == 1
+        # The stored title/state, which the caller never supplied.
+        assert "bad" in prompts[0]
+        assert "good" in prompts[0]
 
 
 @pytest.mark.asyncio
