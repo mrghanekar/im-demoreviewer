@@ -8,6 +8,7 @@ mechanism for gathering GCP resource data.
 import asyncio
 import json
 import logging
+import os
 import re
 import shlex
 import shutil
@@ -49,6 +50,50 @@ def sanitize_stderr(text: str) -> str:
     for pattern, replacement in _REDACTION_PATTERNS:
         text = pattern.sub(replacement, text)
     return text
+
+
+# Environment variables the gcloud CLI needs to locate credentials, config and
+# a usable Python. Everything else in the parent environment is dropped so a
+# subprocess can't inherit unrelated secrets.
+_ENV_PASSTHROUGH = (
+    "PATH",
+    "HOME",
+    "LANG",
+    "LC_ALL",
+    "USER",
+    "CLOUDSDK_CONFIG",
+    "CLOUDSDK_PYTHON",
+    "CLOUDSDK_CORE_PROJECT",
+    "CLOUDSDK_CORE_ACCOUNT",
+    "GOOGLE_APPLICATION_CREDENTIALS",
+    "GOOGLE_CLOUD_PROJECT",
+    "GCLOUD_PROJECT",
+    "CLOUDSDK_PYTHON_SITEPACKAGES",
+    "REQUESTS_CA_BUNDLE",
+    "SSL_CERT_FILE",
+)
+
+
+def _subprocess_env() -> dict[str, str]:
+    """Build a minimal environment for gcloud subprocesses."""
+    return {k: v for k, v in os.environ.items() if k in _ENV_PASSTHROUGH}
+
+
+def _tokenize(command: str) -> list[str]:
+    """Split a gcloud command string into an argv list.
+
+    Commands are executed with create_subprocess_exec rather than through a
+    shell, so shell metacharacters in an interpolated value become literal
+    argv content instead of new commands. Input validation is still the first
+    line of defence; this makes the whole injection class unreachable even if
+    a future call site forgets to validate.
+    """
+    argv = shlex.split(command, posix=True)
+    if not argv:
+        raise ValueError("empty command")
+    if argv[0] != "gcloud":
+        raise ValueError(f"only gcloud commands may be executed, got {argv[0]!r}")
+    return argv
 
 
 class GcloudRunner:
@@ -148,10 +193,19 @@ class GcloudRunner:
 
         process: asyncio.subprocess.Process | None = None
         try:
-            process = await asyncio.create_subprocess_shell(
-                command,
+            try:
+                argv = _tokenize(command)
+            except ValueError as e:
+                err = GcloudError(command, -1, f"Malformed command: {e}")
+                if not future.done():
+                    future.set_exception(err)
+                raise err from e
+
+            process = await asyncio.create_subprocess_exec(
+                *argv,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
+                env=_subprocess_env(),
             )
 
             try:

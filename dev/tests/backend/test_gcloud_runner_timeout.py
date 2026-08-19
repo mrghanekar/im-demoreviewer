@@ -57,7 +57,7 @@ class TestGcloudRunnerTimeout:
         runner = GcloudRunner(timeout=1)
         with patch("shutil.which", return_value="/usr/bin/gcloud"):
             with patch(
-                "backend.core.gcloud_runner.asyncio.create_subprocess_shell",
+                "backend.core.gcloud_runner.asyncio.create_subprocess_exec",
                 AsyncMock(return_value=_fake_process(hang=True)),
             ):
                 with pytest.raises(GcloudError) as ei:
@@ -69,7 +69,7 @@ class TestGcloudRunnerTimeout:
         proc = _fake_process(hang=True)
         with patch("shutil.which", return_value="/usr/bin/gcloud"):
             with patch(
-                "backend.core.gcloud_runner.asyncio.create_subprocess_shell",
+                "backend.core.gcloud_runner.asyncio.create_subprocess_exec",
                 AsyncMock(return_value=proc),
             ):
                 with pytest.raises(GcloudError):
@@ -84,7 +84,7 @@ class TestGcloudRunnerTimeout:
 
         with patch("shutil.which", return_value="/usr/bin/gcloud"):
             with patch(
-                "backend.core.gcloud_runner.asyncio.create_subprocess_shell",
+                "backend.core.gcloud_runner.asyncio.create_subprocess_exec",
                 AsyncMock(return_value=proc),
             ):
                 task = asyncio.create_task(runner.run("gcloud slow"))

@@ -15,6 +15,7 @@ import pydantic
 import pytest
 from fastapi.testclient import TestClient
 
+from backend.core.gcloud_runner import _subprocess_env, _tokenize
 from backend.core.models import ScanRequest
 from backend.main import app
 
@@ -94,3 +95,47 @@ class TestScanRequestInjection:
     def test_empty_list_is_allowed(self):
         req = ScanRequest(scope="org", target_id="123456789012")
         assert req.specific_projects == []
+
+
+class TestRunnerTokenization:
+    """Defence in depth: even an unvalidated value can't escape argv."""
+
+    @pytest.mark.parametrize("payload", SHELL_PAYLOADS)
+    def test_payload_stays_a_single_argv_token(self, payload):
+        argv = _tokenize(f"gcloud projects get-iam-policy '{payload}' --format=json")
+        assert argv[0] == "gcloud"
+        # The payload must survive as exactly one argument, not become
+        # additional commands or arguments.
+        assert payload in argv
+
+    def test_quoted_flags_are_unwrapped_like_a_shell_would(self):
+        argv = _tokenize(
+            "gcloud projects list --filter='parent.id=123' --format='value(projectId)'"
+        )
+        assert argv == [
+            "gcloud",
+            "projects",
+            "list",
+            "--filter=parent.id=123",
+            "--format=value(projectId)",
+        ]
+
+    @pytest.mark.parametrize("command", ["sh -c whoami", "curl http://evil", "rm -rf /"])
+    def test_non_gcloud_commands_rejected(self, command):
+        with pytest.raises(ValueError, match="only gcloud commands"):
+            _tokenize(command)
+
+    def test_empty_command_rejected(self):
+        with pytest.raises(ValueError, match="empty command"):
+            _tokenize("")
+
+    def test_unbalanced_quotes_rejected(self):
+        with pytest.raises(ValueError):
+            _tokenize("gcloud projects list --filter='unclosed")
+
+    def test_subprocess_env_drops_unrelated_variables(self, monkeypatch):
+        monkeypatch.setenv("MY_APP_SECRET", "s3cret")
+        monkeypatch.setenv("PATH", "/usr/bin")
+        env = _subprocess_env()
+        assert "MY_APP_SECRET" not in env
+        assert env["PATH"] == "/usr/bin"
