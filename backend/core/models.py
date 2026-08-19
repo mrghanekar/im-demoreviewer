@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from enum import StrEnum
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 def _utcnow() -> datetime:
@@ -247,6 +247,24 @@ class ScanRequest(BaseModel):
         default_factory=list,
         description="Specific project IDs to scan (if scope is org)"
     )
+
+    @field_validator("specific_projects")
+    @classmethod
+    def _validate_specific_projects(cls, values: list[str]) -> list[str]:
+        """Reject malformed project IDs.
+
+        These bypass the org-scope enumeration guard in Scanner._enumerate_org_projects
+        and are interpolated directly into gcloud shell commands by every check.
+        """
+        from backend.api.middleware.validation import validate_project_id
+
+        cleaned: list[str] = []
+        for value in values:
+            valid = validate_project_id(value)
+            if not valid:
+                raise ValueError(f"Invalid project ID: {value!r}")
+            cleaned.append(valid)
+        return cleaned
 
 
 class CostAnalysis(BaseModel):

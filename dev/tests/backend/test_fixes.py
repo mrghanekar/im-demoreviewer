@@ -106,7 +106,7 @@ async def test_intermediate_save_fires_per_project(monkeypatch, scan_store, mock
     scan = await scanner.create_scan(ScanRequest(
         scope="org", target_id="123456",
         categories=[ServiceCategory.IAM],
-        specific_projects=["p1", "p2"],
+        specific_projects=["project-one", "project-two"],
     ))
 
     await scanner.run_scan(scan.id)

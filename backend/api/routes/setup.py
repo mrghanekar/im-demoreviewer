@@ -56,6 +56,20 @@ REQUIRED_PROJECT_ROLES = [
     "roles/cloudasset.viewer",
 ]
 
+def _require_project_id(project_id: str) -> str:
+    """Validate a project ID or reject the request.
+
+    Every value reaching GcloudRunner is interpolated into a shell command,
+    so unvalidated project IDs are a command-injection sink.
+    """
+    cleaned = validate_project_id(project_id)
+    if not cleaned:
+        raise HTTPException(
+            status_code=422, detail=f"Invalid project ID: '{project_id}'"
+        )
+    return cleaned
+
+
 REQUIRED_ORG_ROLES = [
     "roles/resourcemanager.organizationViewer",
     "roles/resourcemanager.folderViewer",
@@ -169,10 +183,12 @@ async def validate_permissions(
     scope: str = Query("project", pattern=r"^(org|project)$", description="Scan scope"),
 ) -> RoleValidation:
     """Validate that the service account has required IAM roles.
-    
+
     Checks the IAM policy for the given project and reports which
     required roles are granted and which are missing.
     """
+    project_id = _require_project_id(project_id)
+
     try:
         # Get current account email
         account_info = await _gcloud.get_active_account()
