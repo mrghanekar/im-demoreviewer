@@ -14,6 +14,13 @@ interface LogEntry {
   type: 'info' | 'success' | 'error' | 'warning';
 }
 
+// Findings arrive in bursts and are flushed to the store every 150ms. The
+// buffer lives outside the store because it isn't reactive data — nothing
+// renders it — and mutating it through `state._pendingFindings.push()` was a
+// write to store state that bypassed set(), which Zustand does not support.
+let pendingFindings: Finding[] = [];
+let flushTimer: ReturnType<typeof setTimeout> | null = null;
+
 interface ScanState {
   // Wizard state
   scope: 'org' | 'project';
@@ -35,14 +42,15 @@ interface ScanState {
 
   // WebSocket
   socket: WebSocket | null;
+  // Access token for the active scan's stream. The backend closes tokenless
+  // sockets with 4003, so this has to survive navigation to the results page.
+  scanToken: string | null;
+  // Which scan `findings` belongs to, so a slow in-flight fetch for scan A
+  // can't land after the user has already opened scan B.
+  findingsScanId: string | null;
 
   // Polling fallback
   _pollTimer: ReturnType<typeof setInterval> | null;
-
-  // Internal: pending findings queue, flushed in batches to keep the UI fast
-  // when many findings arrive in quick succession.
-  _pendingFindings: Finding[];
-  _flushTimer: ReturnType<typeof setTimeout> | null;
 
   // Actions
   setScope: (scope: 'org' | 'project') => void;
@@ -83,9 +91,9 @@ export const useScanStore = create<ScanState>((set, get) => ({
   scanError: null,
   scans: [],
   socket: null,
+  scanToken: null,
+  findingsScanId: null,
   _pollTimer: null,
-  _pendingFindings: [],
-  _flushTimer: null,
 
   // Actions
   setScope: (scope) => set({ scope }),
@@ -109,11 +117,14 @@ export const useScanStore = create<ScanState>((set, get) => ({
       set({
         currentScanId: scan.id,
         currentScan: scan,
+        scanToken: scan.scan_token ?? null,
+        findings: [],
+        findingsScanId: scan.id,
       });
-      
+
       // Connect to WebSocket for real-time updates
       get().connectWebSocket(scan.id, scan.scan_token);
-      
+
     } catch (error) {
       set({
         isScanning: false,
@@ -123,23 +134,45 @@ export const useScanStore = create<ScanState>((set, get) => ({
   },
 
   connectWebSocket: (scanId: string, token?: string) => {
-    // Close existing socket if any
+    // Callers that don't hold the token (the results page mounting on a scan
+    // started elsewhere in the app) fall back to the stored one. Passing no
+    // token opened a socket the backend immediately closed with 4003, and
+    // because it replaced the authenticated socket, every scan silently
+    // degraded to 3-second polling.
+    const accessToken = token ?? get().scanToken ?? undefined;
+    if (token) set({ scanToken: token });
+
     const { socket } = get();
-    if (socket) {
+    if (socket && socket.readyState !== WebSocket.CLOSED) {
+      // Already streaming this scan — don't tear down a healthy connection.
+      if (socket.url.includes(`/scans/${scanId}/stream`)) return;
+      // Detach before closing: a deliberate swap must not look like a dropped
+      // connection to the onclose handler, or it starts the poll fallback for
+      // a stream we are about to replace.
+      set({ socket: null });
       socket.close();
+    }
+
+    if (!accessToken) {
+      // No token means the server will reject the socket. Say so once and use
+      // polling rather than looping through a doomed connect.
+      console.warn('No scan access token — using polling instead of WebSocket');
+      set({ socket: null });
+      get().startPollingFallback(scanId);
+      return;
     }
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     // Handle both dev (proxy) and prod (same origin)
     const host = window.location.host;
-    const tokenParam = token ? `?token=${encodeURIComponent(token)}` : '';
-    const wsUrl = `${protocol}//${host}/api/v1/scans/${scanId}/stream${tokenParam}`;
+    const wsUrl = `${protocol}//${host}/api/v1/scans/${scanId}/stream?token=${encodeURIComponent(accessToken)}`;
 
-    console.log(`Connecting to WebSocket: ${wsUrl}`);
     const ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
       console.log('WebSocket connected');
+      // A live stream supersedes any fallback polling started earlier.
+      get().stopPollingFallback();
     };
 
     ws.onmessage = (event) => {
@@ -152,12 +185,17 @@ export const useScanStore = create<ScanState>((set, get) => ({
     };
 
     ws.onclose = () => {
+      // A socket we already replaced still fires onclose. Without this guard
+      // the old socket nulls out the *new* one and starts a phantom poll loop.
+      if (get().socket !== ws) return;
+
       console.log('WebSocket disconnected');
       set({ socket: null });
       // Fallback: if still scanning when WS closes, start polling
-      if (get().isScanning && get().currentScanId) {
+      const { isScanning, currentScanId } = get();
+      if (isScanning && currentScanId) {
         console.log('WebSocket closed while scanning — starting poll fallback');
-        get().startPollingFallback(get().currentScanId!);
+        get().startPollingFallback(currentScanId);
       }
     };
 
@@ -171,8 +209,10 @@ export const useScanStore = create<ScanState>((set, get) => ({
   disconnectWebSocket: () => {
     const { socket } = get();
     if (socket) {
-      socket.close();
+      // Detach first — see connectWebSocket. An intentional disconnect must
+      // not be mistaken for a dropped stream and restart polling.
       set({ socket: null });
+      socket.close();
     }
   },
 
@@ -262,7 +302,14 @@ export const useScanStore = create<ScanState>((set, get) => ({
     try {
       // Include suppressed so the UI can render them dimmed and offer unsuppress.
       const findings = await api.fetchFindings(scanId, { includeSuppressed: true });
-      set({ findings, isFetchingFindings: false });
+      // Opening scan B while A's fetch is in flight used to show A's findings
+      // under B's header. Drop a response the user has already navigated away
+      // from.
+      if (get().currentScanId && get().currentScanId !== scanId) {
+        set({ isFetchingFindings: false });
+        return;
+      }
+      set({ findings, findingsScanId: scanId, isFetchingFindings: false });
     } catch (error) {
       console.error('Load findings error:', error);
       set({ isFetchingFindings: false });
@@ -314,10 +361,17 @@ export const useScanStore = create<ScanState>((set, get) => ({
   reset: () => {
     get().disconnectWebSocket();
     get().stopPollingFallback();
+    // The batch buffer outlives the store's state object; a stale flush after
+    // reset would re-populate findings for a scan the user has left.
+    if (flushTimer) clearTimeout(flushTimer);
+    flushTimer = null;
+    pendingFindings = [];
     set({
       currentScanId: null,
       currentScan: null,
       findings: [],
+      findingsScanId: null,
+      scanToken: null,
       scanLogs: [],
       isScanning: false,
       scanError: null,
@@ -329,22 +383,22 @@ function flushPendingFindings(
   set: (state: Partial<ScanState>) => void,
   get: () => ScanState,
 ) {
-  const state = get();
-  const queued = state._pendingFindings;
-  if (queued.length === 0) {
-    set({ _flushTimer: null });
-    return;
-  }
+  flushTimer = null;
+  const queued = pendingFindings;
+  if (queued.length === 0) return;
   // Reset queue first so concurrent pushes during the spread go in the next batch.
-  state._pendingFindings = [];
+  pendingFindings = [];
 
+  const state = get();
   const merged = state.findings.concat(queued);
   const scan = state.currentScan;
 
   // Single summary recompute over the batch
   let newScan = scan;
   if (scan) {
-    const bySeverity = { ...scan.summary.by_severity };
+    // A scan fetched before its summary was populated has no by_severity;
+    // spreading undefined here threw and killed the whole findings stream.
+    const bySeverity = { ...(scan.summary?.by_severity ?? {}) } as Record<Severity, number>;
     for (const f of queued) {
       bySeverity[f.severity] = (bySeverity[f.severity] || 0) + 1;
     }
@@ -353,13 +407,13 @@ function flushPendingFindings(
       findings: merged,
       summary: {
         ...scan.summary,
-        total_findings: scan.summary.total_findings + queued.length,
+        total_findings: (scan.summary?.total_findings ?? 0) + queued.length,
         by_severity: bySeverity,
       },
     };
   }
 
-  set({ findings: merged, currentScan: newScan, _flushTimer: null });
+  set({ findings: merged, currentScan: newScan });
 }
 
 // Helper to process WebSocket events
@@ -447,11 +501,9 @@ function handleScanEvent(event: ScanEvent, set: (state: Partial<ScanState>) => v
 
       // Batch finding-list updates: queue here and flush once per 150ms.
       // Avoids O(n²) re-spreads when 100+ findings arrive in quick succession.
-      const state = get();
-      state._pendingFindings.push(newFinding);
-      if (!state._flushTimer) {
-        const timer = setTimeout(() => flushPendingFindings(set, get), 150);
-        set({ _flushTimer: timer });
+      pendingFindings.push(newFinding);
+      if (!flushTimer) {
+        flushTimer = setTimeout(() => flushPendingFindings(set, get), 150);
       }
       break;
     }

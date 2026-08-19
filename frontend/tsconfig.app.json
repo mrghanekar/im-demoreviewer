@@ -28,5 +28,8 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src"]
+  "include": ["src"],
+  // Tests are typechecked by tsconfig.test.json; keeping them out of the app
+  // project stops vitest globals leaking in and keeps them out of the bundle.
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx"]
 }

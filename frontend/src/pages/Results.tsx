@@ -29,7 +29,6 @@ export function Results() {
   const { scanId } = useParams<{ scanId: string }>();
   const {
     currentScan, findings, scanLogs, isFetchingFindings,
-    connectWebSocket, disconnectWebSocket, loadFindings, pollScan,
     toggleSuppressFinding,
   } = useScanStore();
   const geminiEnabled = useGeminiEnabled();
@@ -71,13 +70,20 @@ export function Results() {
 
   const logsEndRef = useRef<HTMLDivElement>(null);
 
-  // Initial load and polling fallback
+  // Initial load and polling fallback.
+  //
+  // Actions are pulled from getState() rather than the destructured hook
+  // values so the dependency list can honestly be [scanId]. Listing them —
+  // along with currentScan?.status and activeTab, as this effect used to —
+  // tore down the WebSocket and restarted the interval on every status
+  // transition and every tab click.
   useEffect(() => {
     if (!scanId) return;
-    
-    pollScan(scanId);
-    loadFindings(scanId);
-    connectWebSocket(scanId);
+
+    const store = useScanStore.getState();
+    store.pollScan(scanId);
+    store.loadFindings(scanId);
+    store.connectWebSocket(scanId);
 
     // Poll the scan summary every 5s so stat cards tick up even when the
     // WebSocket is unhealthy (Cloud Run sometimes buffers WS for ~30s).
@@ -87,22 +93,23 @@ export function Results() {
     // via WS event_interceptor as they're discovered; the polling fallback
     // (startPollingFallback in the store) handles the no-WS case separately.
     const interval = setInterval(() => {
-      const { currentScan: latestScan } = useScanStore.getState();
+      const live = useScanStore.getState();
+      const latestScan = live.currentScan;
       if (latestScan?.status === 'running' || latestScan?.status === 'pending') {
-        pollScan(scanId);
+        live.pollScan(scanId);
       } else if (latestScan?.status === 'completed' || latestScan?.status === 'failed') {
         clearInterval(interval);
         // One last full refresh after completion to be sure the table
         // matches what the backend persisted.
-        loadFindings(scanId);
+        live.loadFindings(scanId);
       }
     }, 5000);
 
     return () => {
       clearInterval(interval);
-      disconnectWebSocket();
+      useScanStore.getState().disconnectWebSocket();
     };
-  }, [scanId, connectWebSocket, disconnectWebSocket, loadFindings, pollScan, currentScan?.status, activeTab]);
+  }, [scanId]);
 
   // Auto-scroll logs
   useEffect(() => {
