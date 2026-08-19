@@ -4,7 +4,6 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock
 
 from backend.checks.security.org_policies import (
-    OrgPolicyDomainRestriction,
     SCCNotEnabled,
     AccessTransparencyNotEnabled,
 )
@@ -17,27 +16,6 @@ def runner():
     r = MagicMock()
     r.run = AsyncMock(return_value=[])
     return r
-
-
-# ---- SEC-001: Domain Restriction ----
-
-@pytest.mark.asyncio
-class TestOrgPolicyDomainRestriction:
-
-    async def test_flags_missing_policy(self, runner):
-        runner.run = AsyncMock(return_value={})
-        check = OrgPolicyDomainRestriction()
-        findings = await check.execute(PROJECT, runner)
-        assert len(findings) == 1
-        assert findings[0].severity == "high"
-
-    async def test_passes_when_policy_set(self, runner):
-        runner.run = AsyncMock(return_value={
-            "spec": {"rules": [{"values": {"allowedValues": ["C0xxxxxxx"]}}]}
-        })
-        check = OrgPolicyDomainRestriction()
-        findings = await check.execute(PROJECT, runner)
-        assert len(findings) == 0
 
 
 # ---- SEC-003: SCC ----

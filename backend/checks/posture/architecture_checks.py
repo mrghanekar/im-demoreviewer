@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 # Org policy constraints that every prod project should consider setting.
-# iam.allowedPolicyMemberDomains is intentionally excluded — SEC-001 owns that
+# iam.allowedPolicyMemberDomains is intentionally excluded — IAM-012 owns that
 # specific constraint and would otherwise double-fire alongside POST-001.
 RECOMMENDED_CONSTRAINTS = (
     "iam.disableServiceAccountKeyCreation",

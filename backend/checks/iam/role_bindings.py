@@ -435,7 +435,7 @@ class NoOrgLevelIAMAudit(BaseCheck):
         "IAM policies should be reviewed at the organization level for consistency. "
         "Project-level checks alone may miss inherited permissions."
     )
-    severity = Severity.MEDIUM
+    severity = Severity.INFO
     category = Category.SECURITY
     service = "IAM"
     service_category = ServiceCategory.IAM
@@ -449,7 +449,7 @@ class NoOrgLevelIAMAudit(BaseCheck):
         # This check is informational — always recommend org-level audit
         return [CheckResult(
             check_id=self.id, title=self.title, description=self.description,
-            severity=Severity.INFO, category=self.category, service=self.service,
+            severity=self.severity, category=self.category, service=self.service,
             resource_name=f"projects/{project_id}",
             resource_link=self.console_link("iam", project_id),
             project_id=project_id,

@@ -213,7 +213,7 @@ class TestAiExplainCache:
         finding = Finding(
             id="finding-0001",
             scan_id="scan-0001",
-            check_id="SEC-001",
+            check_id="IAM-012",
             title="T",
             description="D",
             severity=Severity.HIGH,

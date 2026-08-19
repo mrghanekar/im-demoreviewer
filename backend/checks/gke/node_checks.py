@@ -163,7 +163,7 @@ class GKEPodSecurityPolicy(BaseCheck):
     id = "GKE-015"
     title = "Pod Security Standards not enforced"
     description = "Pod Security Standards (PSS) restrict pod privilege escalation and host access."
-    severity = Severity.MEDIUM
+    severity = Severity.INFO
     category = Category.SECURITY
     service = "GKE"
     service_category = ServiceCategory.GKE
@@ -182,7 +182,7 @@ class GKEPodSecurityPolicy(BaseCheck):
                 zone = c.get("zone", "") or c.get("location", "")
                 findings.append(CheckResult(
                     check_id=self.id, title=self.title, description=self.description,
-                    severity=Severity.INFO, category=self.category, service=self.service,
+                    severity=self.severity, category=self.category, service=self.service,
                     resource_name=f"clusters/{name}", project_id=project_id,
                     resource_link=self.console_link("gke_cluster", project_id, name=name, location=zone),
                     current_state="Verify Pod Security Standards are enforced at namespace level",

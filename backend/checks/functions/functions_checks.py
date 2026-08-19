@@ -100,11 +100,14 @@ class FunctionsPlaintextSecrets(BaseCheck):
         findings: list[CheckResult] = []
         for fn in await _list_functions(gcloud_runner, project_id):
             name = _fn_name(fn)
-            env_vars = (
-                fn.get("buildConfig", {}).get("environmentVariables", {})
-                or fn.get("serviceConfig", {}).get("environmentVariables", {})
-                or {}
-            )
+            # Both maps have to be inspected. `or`-selecting them meant that a
+            # function with any build-time var at all (buildpacks set
+            # GOOGLE_FUNCTION_TARGET routinely) had its runtime vars skipped —
+            # and runtime is where DB_PASSWORD actually lives.
+            env_vars = {
+                **(fn.get("buildConfig", {}).get("environmentVariables", {}) or {}),
+                **(fn.get("serviceConfig", {}).get("environmentVariables", {}) or {}),
+            }
             suspicious = [k for k in env_vars if any(p in k.upper() for p in self.SECRET_PATTERNS)]
             if suspicious:
                 findings.append(CheckResult(

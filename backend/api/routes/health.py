@@ -35,4 +35,10 @@ async def health_check() -> HealthResponse:
         checks_loaded=len(checks),
         environment="cloud_run" if os.environ.get("K_SERVICE") else "local",
         gemini_enabled=gemini_enabled(),
+        service_name=os.environ.get("K_SERVICE", ""),
+        # Cloud Run exposes the service name but not the region, so setup.sh
+        # passes it in. The UI prints it back in the "how to read the logs"
+        # hint; without it the hint used to name a region the operator may
+        # never have deployed to.
+        region=os.environ.get("DR_REGION", "").strip(),
     )

@@ -28,6 +28,28 @@ class TestHealthEndpoint:
         data = response.json()
         assert data["app_name"] == "Democratized Reviewer"
 
+    def test_health_reports_the_deployed_region(self, client, monkeypatch):
+        """The UI builds its `gcloud run services logs read` hint from these.
+
+        Cloud Run injects K_SERVICE but not the region, so setup.sh passes
+        DR_REGION. Before this, the hint hardcoded asia-south1 and was simply
+        wrong for anyone who deployed elsewhere.
+        """
+        monkeypatch.setenv("K_SERVICE", "democratized-reviewer")
+        monkeypatch.setenv("DR_REGION", "europe-west1")
+        data = client.get("/api/v1/health").json()
+        assert data["environment"] == "cloud_run"
+        assert data["service_name"] == "democratized-reviewer"
+        assert data["region"] == "europe-west1"
+
+    def test_health_leaves_region_empty_when_unknown(self, client, monkeypatch):
+        """Absent DR_REGION the UI must omit --region, not guess one."""
+        monkeypatch.delenv("DR_REGION", raising=False)
+        monkeypatch.delenv("K_SERVICE", raising=False)
+        data = client.get("/api/v1/health").json()
+        assert data["region"] == ""
+        assert data["service_name"] == ""
+
 
 class TestScanEndpoints:
     """Tests for scan management endpoints."""

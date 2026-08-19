@@ -547,7 +547,7 @@ class GCEPreemptibleInProd(BaseCheck):
     id = "GCE-013"
     title = "Spot/preemptible VM in use"
     description = "Spot VMs can be terminated at any time; review if running production workloads."
-    severity = Severity.LOW
+    severity = Severity.INFO
     category = Category.RELIABILITY
     service = "GCE"
     service_category = ServiceCategory.GCE
@@ -566,7 +566,7 @@ class GCEPreemptibleInProd(BaseCheck):
                 if scheduling.get("preemptible", False) or scheduling.get("provisioningModel") == "SPOT":
                     findings.append(CheckResult(
                         check_id=self.id, title=self.title, description=self.description,
-                        severity=Severity.INFO, category=self.category, service=self.service,
+                        severity=self.severity, category=self.category, service=self.service,
                         resource_name=f"instances/{name}", project_id=project_id,
                         resource_link=self.console_link("gce_instance", project_id, name=name, zone=zone),
                         current_state="Instance is a Spot/Preemptible VM",

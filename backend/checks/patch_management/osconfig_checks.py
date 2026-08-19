@@ -318,7 +318,11 @@ class NoPatchDeploymentSchedule(BaseCheck):
 
 
 class VMMissingOSPatches(BaseCheck):
-    """PATCH-004: VM Manager vulnerability report shows unpatched HIGH/CRITICAL CVEs."""
+    """PATCH-004: VM Manager vulnerability report shows unpatched HIGH/CRITICAL CVEs.
+
+    The declared severity is the worst case: findings escalate to CRITICAL
+    when any CRITICAL CVE is present, and are HIGH otherwise.
+    """
 
     id = "PATCH-004"
     title = "VM has unpatched HIGH/CRITICAL OS vulnerabilities"
@@ -326,7 +330,7 @@ class VMMissingOSPatches(BaseCheck):
         "VM Manager's vulnerability report lists CVEs affecting installed OS "
         "packages for which fixes are available but not applied."
     )
-    severity = Severity.HIGH
+    severity = Severity.CRITICAL
     category = Category.SECURITY
     service = "Patch Management"
     service_category = ServiceCategory.PATCH_MANAGEMENT

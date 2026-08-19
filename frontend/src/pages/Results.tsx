@@ -23,7 +23,7 @@ import { CheckExecutionRow } from '@/components/dashboard/CheckExecutionRow';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { HealthScoreCard } from '@/components/dashboard/HealthScoreCard';
 import { CostSavingTab } from '@/components/cost/CostSavingTab';
-import { useGeminiEnabled } from '@/lib/useGeminiEnabled';
+import { useGeminiEnabled, useLogsCommand } from '@/lib/useGeminiEnabled';
 
 export function Results() {
   const { scanId } = useParams<{ scanId: string }>();
@@ -32,6 +32,7 @@ export function Results() {
     toggleSuppressFinding,
   } = useScanStore();
   const geminiEnabled = useGeminiEnabled();
+  const logsCommand = useLogsCommand();
 
   // URL-backed filter state — survives refresh and is shareable. Each setter
   // also pushes the change into the URL via patchParams() below.
@@ -297,7 +298,7 @@ export function Results() {
             Check the backend logs to confirm:
           </div>
           <pre className="mt-1 rounded bg-[--color-background] border border-[--color-border-light] px-3 py-2 text-xs font-mono text-[--color-accent-blue] overflow-x-auto">
-gcloud run services logs read democratized-reviewer --region=asia-south1 --limit=50
+{logsCommand}
           </pre>
         </div>
       )}

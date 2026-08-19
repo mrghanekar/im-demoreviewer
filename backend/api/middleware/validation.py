@@ -6,6 +6,8 @@ injection attacks and ensure well-formed input.
 
 import re
 
+from fastapi import HTTPException
+
 # GCP Project ID: 6-30 chars, lowercase letters, digits, hyphens
 # Must start with a letter and cannot end with a hyphen
 PROJECT_ID_RE = re.compile(r"^[a-z][a-z0-9\-]{4,28}[a-z0-9]$")
@@ -81,6 +83,19 @@ def validate_scan_id(scan_id: str) -> str | None:
     if SCAN_ID_RE.match(cleaned):
         return cleaned
     return None
+
+
+def require_scan_id(scan_id: str) -> str:
+    """FastAPI dependency yielding a validated scan ID, or 422.
+
+    Use this rather than the raw path parameter wherever the ID is
+    interpolated into anything — a GCS object prefix, a ``Content-Disposition``
+    filename — and not merely used as a dictionary key.
+    """
+    cleaned = validate_scan_id(scan_id)
+    if not cleaned:
+        raise HTTPException(status_code=422, detail="Invalid scan ID")
+    return cleaned
 
 
 def sanitize_string(value: str, max_length: int = 500) -> str:

@@ -1,6 +1,6 @@
 """Security checks for organizational policies, SCC, KMS, and related services.
 
-Checks: SEC-001 through SEC-010
+Checks: SEC-002 through SEC-010 (domain-restricted sharing lives in IAM-012)
 """
 
 import logging
@@ -10,51 +10,6 @@ from backend.checks.base import BaseCheck
 from backend.core.models import Category, CheckResult, Severity, ServiceCategory
 
 logger = logging.getLogger(__name__)
-
-
-class OrgPolicyDomainRestriction(BaseCheck):
-    id = "SEC-001"
-    title = "Org policy not enforcing domain restriction"
-    description = "The iam.allowedPolicyMemberDomains constraint is not set, allowing any domain in IAM."
-    severity = Severity.HIGH
-    category = Category.SECURITY
-    service = "Security"
-    service_category = ServiceCategory.SECURITY
-    fix_command_template = ""
-    references = ["https://cloud.google.com/resource-manager/docs/organization-policy/restricting-domains"]
-    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.5.15", "A.5.18"]}
-
-    async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
-        findings: list[CheckResult] = []
-        try:
-            result = await gcloud_runner.run(
-                f"gcloud org-policies describe iam.allowedPolicyMemberDomains --project={project_id} --format=json"
-            )
-            if isinstance(result, dict):
-                spec = result.get("spec", {})
-                rules = spec.get("rules", []) if spec else []
-                if rules:
-                    return []
-            findings.append(CheckResult(
-                check_id=self.id, title=self.title, description=self.description,
-                severity=self.severity, category=self.category, service=self.service,
-                resource_name=f"projects/{project_id}", project_id=project_id,
-                resource_link=f"https://console.cloud.google.com/iam-admin/orgpolicies/iam-allowedPolicyMemberDomains?project={project_id}",
-                current_state="Domain restriction org policy is not enforced",
-                recommended_state="Set iam.allowedPolicyMemberDomains to your org's domain",
-                fix_command="", references=self.references,
-            ))
-        except Exception as e:
-            logger.debug("SEC-001: Could not read org policy for %s: %s", project_id, e)
-            findings.append(CheckResult(
-                check_id=self.id, title=self.title, description=self.description,
-                severity=self.severity, category=self.category, service=self.service,
-                resource_name=f"projects/{project_id}", project_id=project_id,
-                current_state="Could not read org policy (may not be configured)",
-                recommended_state="Set iam.allowedPolicyMemberDomains at org level",
-                fix_command="", references=self.references,
-            ))
-        return findings
 
 
 class VPCServiceControlsNotConfigured(BaseCheck):
@@ -501,7 +456,6 @@ class ConfidentialVMsNotUsed(BaseCheck):
 import sys as _sys  # noqa: E402
 from backend.checks._module_helpers import apply_required_apis_by_id as _apply  # noqa: E402
 _apply(_sys.modules[__name__], {
-    "SEC-001": ["orgpolicy.googleapis.com"],
     # The "is service X enabled?" checks (SEC-002/003/007/008/009/010) all call
     # `gcloud services list` to detect their target API. They MUST NOT require
     # their target API — that's what they're detecting — but they do need

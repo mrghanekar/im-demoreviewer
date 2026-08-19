@@ -17,7 +17,7 @@ from fastapi.responses import HTMLResponse
 from backend.core.scanner import ScanStore
 from backend.api.routes.scan import get_store
 from backend.utils.report_generator import generate_html_report, generate_pdf_report
-from backend.api.middleware.validation import validate_bucket_name
+from backend.api.middleware.validation import require_scan_id, validate_bucket_name
 from backend.config import settings
 
 logger = logging.getLogger(__name__)
@@ -68,7 +68,7 @@ def _require_allowed_bucket(bucket: str) -> str:
 
 @router.get("/{scan_id}/export/json")
 async def export_json(
-    scan_id: str,
+    scan_id: str = Depends(require_scan_id),
     store: ScanStore = Depends(get_store),
 ) -> Response:
     """Download the full scan record as JSON."""
@@ -91,7 +91,7 @@ async def export_json(
 
 @router.get("/{scan_id}/export/html")
 async def export_html(
-    scan_id: str,
+    scan_id: str = Depends(require_scan_id),
     store: ScanStore = Depends(get_store),
 ) -> HTMLResponse:
     """Download scan results as a styled HTML report."""
@@ -117,7 +117,7 @@ async def export_html(
 
 @router.get("/{scan_id}/export/csv")
 async def export_csv(
-    scan_id: str,
+    scan_id: str = Depends(require_scan_id),
     include_suppressed: bool = False,
     store: ScanStore = Depends(get_store),
 ) -> Response:
@@ -170,7 +170,7 @@ async def export_csv(
 
 @router.get("/{scan_id}/export/pdf")
 async def export_pdf(
-    scan_id: str,
+    scan_id: str = Depends(require_scan_id),
     store: ScanStore = Depends(get_store),
 ) -> Response:
     """Download scan results as a PDF report."""
@@ -269,7 +269,7 @@ def _perform_gcs_export(bucket: str, scan_id: str, scan) -> dict:
 
 @router.post("/{scan_id}/export")
 async def export_to_gcs(
-    scan_id: str,
+    scan_id: str = Depends(require_scan_id),
     bucket: str = Query(..., description="GCS bucket name for export"),
     store: ScanStore = Depends(get_store),
 ) -> dict:

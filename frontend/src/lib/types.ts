@@ -182,6 +182,8 @@ export interface HealthResponse {
   checks_loaded: number;
   environment: string;
   gemini_enabled?: boolean;
+  service_name?: string;
+  region?: string;
 }
 
 // ---------------------------------------------------------------------------

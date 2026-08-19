@@ -34,6 +34,170 @@ function formatUsd(n: number): string {
   return currency.format(n);
 }
 
+function IdleState({
+  scan,
+  findingsCount,
+  showEstimate,
+  onShowEstimate,
+  estimate,
+  estimateLoading,
+  onStart,
+  starting,
+  startError,
+}: {
+  scan: Scan;
+  findingsCount: number;
+  showEstimate: boolean;
+  onShowEstimate: () => void;
+  estimate: { findings_to_analyze: number; estimated_usd: number; estimated_tokens_in: number; estimated_tokens_out: number; model: string } | undefined;
+  estimateLoading: boolean;
+  onStart: () => void;
+  starting: boolean;
+  startError: string | null;
+}) {
+  const projectLabel = scan.scope === 'project' ? scan.target_id : '(deploy project)';
+  return (
+    <div className="max-w-3xl space-y-6">
+      <div>
+        <h2 className="text-lg font-mono text-[--color-text-primary] flex items-center gap-2">
+          <DollarSign className="h-5 w-5 text-[--color-accent-green]" />
+          Cost Saving Analysis
+        </h2>
+        <p className="text-sm text-[--color-text-secondary] mt-2">
+          Send every finding with a cloud resource to Gemini, grounded with
+          Google Search, so it can pull current pricing from cloud.google.com
+          and estimate how much each idle / oversized / orphaned resource is
+          costing per month.
+        </p>
+      </div>
+
+      <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-4 space-y-3">
+        <div className="flex items-start gap-3">
+          <AlertTriangle className="h-5 w-5 text-amber-400 mt-0.5 shrink-0" />
+          <div className="text-sm text-[--color-text-primary] space-y-2">
+            <p>
+              This will call the <strong>Gemini API in your GCP project</strong>{' '}
+              (<code className="font-mono text-xs">{projectLabel}</code>) and the
+              tokens will appear on your Vertex AI bill.
+            </p>
+            <p className="text-[--color-text-secondary]">
+              The model uses <strong>Google Search grounding</strong> to pull
+              current cloud.google.com pricing pages, so results reflect today's
+              list prices (CUD / contract discounts not modelled).
+            </p>
+            <p className="text-[--color-text-secondary]">
+              Rough cost: ~$0.05–$0.20 per scan with{' '}
+              <code className="font-mono text-xs">gemini-3-flash</code>.
+            </p>
+          </div>
+        </div>
+
+        {showEstimate && (
+          <div className="ml-8 rounded border border-[--color-border] bg-[--color-background] p-3 text-xs font-mono">
+            {estimateLoading && (
+              <span className="text-[--color-text-muted]">Computing estimate…</span>
+            )}
+            {estimate && (
+              <div className="space-y-1 text-[--color-text-primary]">
+                <div>
+                  Findings to analyze:{' '}
+                  <span className="text-[--color-accent-green]">{estimate.findings_to_analyze}</span>
+                </div>
+                <div>Model: {estimate.model}</div>
+                <div>
+                  Tokens (in / out): {estimate.estimated_tokens_in.toLocaleString()} /{' '}
+                  {estimate.estimated_tokens_out.toLocaleString()}
+                </div>
+                <div className="text-[--color-accent-green] pt-1">
+                  Estimated bill for this scan: {formatUsd(estimate.estimated_usd)}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {startError && (
+        <div className="rounded-md border border-red-500/40 bg-red-500/5 p-3 text-sm text-red-300">
+          {startError}
+        </div>
+      )}
+
+      <div className="flex items-center gap-4">
+        <button
+          onClick={onStart}
+          disabled={starting || findingsCount === 0}
+          className="inline-flex items-center gap-2 px-4 py-2 bg-[--color-accent-green]/10 border border-[--color-accent-green] text-[--color-accent-green] font-mono text-sm rounded-md hover:bg-[--color-accent-green]/20 disabled:opacity-50 transition-colors"
+        >
+          {starting ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Sparkles className="h-4 w-4" />
+          )}
+          {starting ? 'Starting…' : 'Compute Costs'}
+        </button>
+        {!showEstimate && (
+          <button
+            onClick={onShowEstimate}
+            className="text-xs text-[--color-accent-blue] hover:underline"
+          >
+            Show estimated token spend first
+          </button>
+        )}
+        <span className="text-xs text-[--color-text-muted]">
+          {findingsCount} finding{findingsCount === 1 ? '' : 's'} with resources will be analyzed.
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function RunningState({ analysis }: { analysis: NonNullable<Scan['cost_analysis']> }) {
+  return (
+    <div className="max-w-3xl flex items-start gap-3 p-6 rounded-md border border-[--color-border] bg-[--color-surface]">
+      <Loader2 className="h-5 w-5 animate-spin text-[--color-accent-green] mt-0.5" />
+      <div className="space-y-1">
+        <div className="text-sm text-[--color-text-primary]">
+          Gemini is pricing {analysis.findings_count} finding
+          {analysis.findings_count === 1 ? '' : 's'}…
+        </div>
+        <div className="text-xs text-[--color-text-muted]">
+          Usually takes 30–90 seconds. The page updates automatically.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FailedState({
+  analysis,
+  onRetry,
+  retrying,
+}: {
+  analysis: NonNullable<Scan['cost_analysis']>;
+  onRetry: () => void;
+  retrying: boolean;
+}) {
+  return (
+    <div className="max-w-3xl space-y-4">
+      <div className="rounded-md border border-red-500/40 bg-red-500/5 p-4">
+        <div className="text-sm text-red-300 font-mono mb-2">Cost analysis failed</div>
+        <pre className="text-xs text-[--color-text-secondary] whitespace-pre-wrap">
+          {analysis.error_message || 'Unknown error.'}
+        </pre>
+      </div>
+      <button
+        onClick={onRetry}
+        disabled={retrying}
+        className="inline-flex items-center gap-2 px-4 py-2 bg-[--color-accent-green]/10 border border-[--color-accent-green] text-[--color-accent-green] font-mono text-sm rounded-md hover:bg-[--color-accent-green]/20 disabled:opacity-50"
+      >
+        {retrying ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+        Retry
+      </button>
+    </div>
+  );
+}
+
 export function CostSavingTab({
   scan,
   findings,
@@ -138,172 +302,6 @@ export function CostSavingTab({
       rerunning={startMut.isPending}
     />
   );
-
-  // ---------- inner components ----------
-
-  function IdleState({
-    scan,
-    findingsCount,
-    showEstimate,
-    onShowEstimate,
-    estimate,
-    estimateLoading,
-    onStart,
-    starting,
-    startError,
-  }: {
-    scan: Scan;
-    findingsCount: number;
-    showEstimate: boolean;
-    onShowEstimate: () => void;
-    estimate: { findings_to_analyze: number; estimated_usd: number; estimated_tokens_in: number; estimated_tokens_out: number; model: string } | undefined;
-    estimateLoading: boolean;
-    onStart: () => void;
-    starting: boolean;
-    startError: string | null;
-  }) {
-    const projectLabel = scan.scope === 'project' ? scan.target_id : '(deploy project)';
-    return (
-      <div className="max-w-3xl space-y-6">
-        <div>
-          <h2 className="text-lg font-mono text-[--color-text-primary] flex items-center gap-2">
-            <DollarSign className="h-5 w-5 text-[--color-accent-green]" />
-            Cost Saving Analysis
-          </h2>
-          <p className="text-sm text-[--color-text-secondary] mt-2">
-            Send every finding with a cloud resource to Gemini, grounded with
-            Google Search, so it can pull current pricing from cloud.google.com
-            and estimate how much each idle / oversized / orphaned resource is
-            costing per month.
-          </p>
-        </div>
-
-        <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-4 space-y-3">
-          <div className="flex items-start gap-3">
-            <AlertTriangle className="h-5 w-5 text-amber-400 mt-0.5 shrink-0" />
-            <div className="text-sm text-[--color-text-primary] space-y-2">
-              <p>
-                This will call the <strong>Gemini API in your GCP project</strong>{' '}
-                (<code className="font-mono text-xs">{projectLabel}</code>) and the
-                tokens will appear on your Vertex AI bill.
-              </p>
-              <p className="text-[--color-text-secondary]">
-                The model uses <strong>Google Search grounding</strong> to pull
-                current cloud.google.com pricing pages, so results reflect today's
-                list prices (CUD / contract discounts not modelled).
-              </p>
-              <p className="text-[--color-text-secondary]">
-                Rough cost: ~$0.05–$0.20 per scan with{' '}
-                <code className="font-mono text-xs">gemini-3-flash</code>.
-              </p>
-            </div>
-          </div>
-
-          {showEstimate && (
-            <div className="ml-8 rounded border border-[--color-border] bg-[--color-background] p-3 text-xs font-mono">
-              {estimateLoading && (
-                <span className="text-[--color-text-muted]">Computing estimate…</span>
-              )}
-              {estimate && (
-                <div className="space-y-1 text-[--color-text-primary]">
-                  <div>
-                    Findings to analyze:{' '}
-                    <span className="text-[--color-accent-green]">{estimate.findings_to_analyze}</span>
-                  </div>
-                  <div>Model: {estimate.model}</div>
-                  <div>
-                    Tokens (in / out): {estimate.estimated_tokens_in.toLocaleString()} /{' '}
-                    {estimate.estimated_tokens_out.toLocaleString()}
-                  </div>
-                  <div className="text-[--color-accent-green] pt-1">
-                    Estimated bill for this scan: {formatUsd(estimate.estimated_usd)}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {startError && (
-          <div className="rounded-md border border-red-500/40 bg-red-500/5 p-3 text-sm text-red-300">
-            {startError}
-          </div>
-        )}
-
-        <div className="flex items-center gap-4">
-          <button
-            onClick={onStart}
-            disabled={starting || findingsCount === 0}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-[--color-accent-green]/10 border border-[--color-accent-green] text-[--color-accent-green] font-mono text-sm rounded-md hover:bg-[--color-accent-green]/20 disabled:opacity-50 transition-colors"
-          >
-            {starting ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Sparkles className="h-4 w-4" />
-            )}
-            {starting ? 'Starting…' : 'Compute Costs'}
-          </button>
-          {!showEstimate && (
-            <button
-              onClick={onShowEstimate}
-              className="text-xs text-[--color-accent-blue] hover:underline"
-            >
-              Show estimated token spend first
-            </button>
-          )}
-          <span className="text-xs text-[--color-text-muted]">
-            {findingsCount} finding{findingsCount === 1 ? '' : 's'} with resources will be analyzed.
-          </span>
-        </div>
-      </div>
-    );
-  }
-
-  function RunningState({ analysis }: { analysis: NonNullable<typeof scan.cost_analysis> }) {
-    return (
-      <div className="max-w-3xl flex items-start gap-3 p-6 rounded-md border border-[--color-border] bg-[--color-surface]">
-        <Loader2 className="h-5 w-5 animate-spin text-[--color-accent-green] mt-0.5" />
-        <div className="space-y-1">
-          <div className="text-sm text-[--color-text-primary]">
-            Gemini is pricing {analysis.findings_count} finding
-            {analysis.findings_count === 1 ? '' : 's'}…
-          </div>
-          <div className="text-xs text-[--color-text-muted]">
-            Usually takes 30–90 seconds. The page updates automatically.
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  function FailedState({
-    analysis,
-    onRetry,
-    retrying,
-  }: {
-    analysis: NonNullable<typeof scan.cost_analysis>;
-    onRetry: () => void;
-    retrying: boolean;
-  }) {
-    return (
-      <div className="max-w-3xl space-y-4">
-        <div className="rounded-md border border-red-500/40 bg-red-500/5 p-4">
-          <div className="text-sm text-red-300 font-mono mb-2">Cost analysis failed</div>
-          <pre className="text-xs text-[--color-text-secondary] whitespace-pre-wrap">
-            {analysis.error_message || 'Unknown error.'}
-          </pre>
-        </div>
-        <button
-          onClick={onRetry}
-          disabled={retrying}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-[--color-accent-green]/10 border border-[--color-accent-green] text-[--color-accent-green] font-mono text-sm rounded-md hover:bg-[--color-accent-green]/20 disabled:opacity-50"
-        >
-          {retrying ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-          Retry
-        </button>
-      </div>
-    );
-  }
 }
 
 function CompletedState({

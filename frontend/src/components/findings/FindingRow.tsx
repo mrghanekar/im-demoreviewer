@@ -62,8 +62,17 @@ export function FindingRow({
   return (
     <div className={`transition-colors ${finding.suppressed ? 'opacity-50' : ''}`}>
       <div
-        className="px-4 py-3 hover:bg-[--color-surface-hover] cursor-pointer flex items-start gap-3"
+        role="button"
+        tabIndex={0}
+        aria-expanded={expanded}
+        className="px-4 py-3 hover:bg-[--color-surface-hover] cursor-pointer flex items-start gap-3 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[--color-accent-green]"
         onClick={() => setExpanded(!expanded)}
+        onKeyDown={(e) => {
+          if (e.key !== 'Enter' && e.key !== ' ') return;
+          // Space would otherwise scroll the page
+          if (e.key === ' ') e.preventDefault();
+          setExpanded(!expanded);
+        }}
       >
         {expanded ? (
           <ChevronDown className="h-4 w-4 text-[--color-text-muted] mt-0.5 shrink-0" />

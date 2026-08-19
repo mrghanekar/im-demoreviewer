@@ -5,12 +5,12 @@
 # Tears down all intentionally misconfigured demo resources created for
 # demonstration purposes. Run this after your demo is complete.
 #
-# Usage: bash cleanup-demo.sh
+# Usage: bash cleanup-demo.sh PROJECT_ID
+#    or: PROJECT_ID=my-project bash cleanup-demo.sh
 # ============================================================================
 
 set -euo pipefail
 
-PROJECT="democratized-reviewer"
 REGION="us-central1"
 ZONE="us-central1-a"
 
@@ -24,6 +24,18 @@ info()  { echo -e "${CYAN}[INFO]${NC} $*"; }
 ok()    { echo -e "${GREEN}[OK]${NC}   $*"; }
 warn()  { echo -e "${YELLOW}[WARN]${NC} $*"; }
 fail()  { echo -e "${RED}[FAIL]${NC} $*"; }
+
+# Destructive script: never guess the target. The project must be given
+# explicitly and is passed to every gcloud call via --project, so the
+# operator's active gcloud configuration is left untouched.
+PROJECT="${1:-${PROJECT_ID:-}}"
+if [[ -z "${PROJECT}" ]]; then
+    fail "No project specified."
+    echo ""
+    echo "Usage: bash cleanup-demo.sh PROJECT_ID"
+    echo "   or: PROJECT_ID=my-project bash cleanup-demo.sh"
+    exit 1
+fi
 
 delete_resource() {
     local desc="$1"
@@ -48,7 +60,13 @@ if ! gcloud projects describe "${PROJECT}" --quiet &>/dev/null; then
     fail "Project '${PROJECT}' not found or you lack access."
     exit 1
 fi
-gcloud config set project "${PROJECT}" --quiet
+
+warn "This will PERMANENTLY DELETE all demo resources in project '${PROJECT}'."
+read -r -p "Type 'yes' to continue: " CONFIRM
+if [[ "${CONFIRM}" != "yes" ]]; then
+    info "Aborted — nothing was deleted."
+    exit 0
+fi
 
 # --- Cloud SQL (takes longest, start first) ---
 info "Deleting Cloud SQL instance (this takes a few minutes)..."
@@ -97,7 +115,8 @@ delete_resource "demo-insecure-vpc network" \
 
 # --- GCS Bucket ---
 delete_resource "dr-demo-insecure-bucket" \
-    gcloud storage rm -r gs://dr-demo-insecure-bucket --quiet
+    gcloud storage rm -r gs://dr-demo-insecure-bucket \
+    --project="${PROJECT}" --quiet
 
 # --- Pub/Sub ---
 delete_resource "demo-insecure-sub subscription" \

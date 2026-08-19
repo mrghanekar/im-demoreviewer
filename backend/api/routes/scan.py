@@ -17,7 +17,7 @@ from backend.core.models import (
 )
 from backend.core.scanner import Scanner, ScanStore
 from backend.api.routes.websocket import get_event_callback, generate_scan_token
-from backend.api.middleware.validation import validate_scan_id, validate_target_id
+from backend.api.middleware.validation import require_scan_id, validate_target_id
 from backend.utils.compliance_report import build_compliance_summary
 
 
@@ -41,12 +41,6 @@ class SuppressionRequest(BaseModel):
     """Optional payload for the suppress endpoint."""
     reason: str = Field(default="", max_length=500)
 
-
-def _require_scan_id(scan_id: str) -> str:
-    cleaned = validate_scan_id(scan_id)
-    if not cleaned:
-        raise HTTPException(status_code=422, detail="Invalid scan ID")
-    return cleaned
 
 logger = logging.getLogger(__name__)
 
@@ -136,7 +130,7 @@ async def list_scans(
 
 @router.get("/{scan_id}", response_model=Scan)
 async def get_scan(
-    scan_id: str,
+    scan_id: str = Depends(require_scan_id),
     store: ScanStore = Depends(get_store),
 ) -> Scan:
     """Get a scan by ID, including status and a live-recomputed summary.
@@ -190,7 +184,7 @@ async def get_scan(
 
 @router.delete("/{scan_id}", response_model=Scan)
 async def cancel_scan(
-    scan_id: str,
+    scan_id: str = Depends(require_scan_id),
     scanner: Scanner = Depends(get_scanner),
 ) -> Scan:
     """Cancel a running scan."""
@@ -202,7 +196,7 @@ async def cancel_scan(
 
 @router.get("/{scan_id}/findings", response_model=list[Finding])
 async def get_findings(
-    scan_id: str,
+    scan_id: str = Depends(require_scan_id),
     severity: str | None = None,
     category: str | None = None,
     service: str | None = None,
@@ -247,8 +241,8 @@ async def get_findings(
 
 @router.post("/{scan_id}/findings/{finding_id}/suppress", response_model=Finding)
 async def suppress_finding(
-    scan_id: str,
     finding_id: str,
+    scan_id: str = Depends(require_scan_id),
     payload: SuppressionRequest | None = None,
     store: ScanStore = Depends(get_store),
 ) -> Finding:
@@ -272,8 +266,8 @@ async def suppress_finding(
 
 @router.delete("/{scan_id}/findings/{finding_id}/suppress", response_model=Finding)
 async def unsuppress_finding(
-    scan_id: str,
     finding_id: str,
+    scan_id: str = Depends(require_scan_id),
     store: ScanStore = Depends(get_store),
 ) -> Finding:
     """Unsuppress a finding so it appears in default views and counts again."""
@@ -294,8 +288,8 @@ async def unsuppress_finding(
 
 @router.get("/{scan_id}/findings/{finding_id}", response_model=Finding)
 async def get_finding(
-    scan_id: str,
     finding_id: str,
+    scan_id: str = Depends(require_scan_id),
     store: ScanStore = Depends(get_store),
 ) -> Finding:
     """Get a single finding by ID."""
@@ -312,7 +306,7 @@ async def get_finding(
 
 @router.get("/{scan_id}/summary", response_model=ScanSummary)
 async def get_summary(
-    scan_id: str,
+    scan_id: str = Depends(require_scan_id),
     store: ScanStore = Depends(get_store),
 ) -> ScanSummary:
     """Get scan summary statistics."""
@@ -325,7 +319,7 @@ async def get_summary(
 
 @router.get("/{scan_id}/compliance")
 async def get_compliance(
-    scan_id: str,
+    scan_id: str = Depends(require_scan_id),
     store: ScanStore = Depends(get_store),
 ) -> dict:
     """Regroup this scan's results by compliance framework and control.
@@ -334,7 +328,6 @@ async def get_compliance(
     auditor asks the transpose — "what is the evidence for ISO 27001 A.8.20?"
     — which is the same data indexed by control.
     """
-    scan_id = _require_scan_id(scan_id)
     scan = store.get(scan_id)
     if not scan:
         raise HTTPException(status_code=404, detail=f"Scan {scan_id} not found")

@@ -14,7 +14,10 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://localhost:8080',
+        // Inside docker-compose the backend is a sibling container, so
+        // "localhost" would loop back to the frontend container itself.
+        // Compose overrides this; the default suits a locally-run uvicorn.
+        target: process.env.VITE_PROXY_TARGET ?? 'http://localhost:8080',
         changeOrigin: true,
       },
     },

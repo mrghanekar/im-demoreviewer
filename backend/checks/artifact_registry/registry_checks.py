@@ -330,7 +330,11 @@ class RepositoryNoCleanupPolicy(BaseCheck):
 
 
 class ImagesWithCriticalVulnerabilities(BaseCheck):
-    """AR-005: Stored images carry critical/high vulnerability findings."""
+    """AR-005: Stored images carry critical/high vulnerability findings.
+
+    The declared severity is the worst case: findings escalate to CRITICAL
+    when any CRITICAL CVE is counted, and are HIGH otherwise.
+    """
 
     id = "AR-005"
     title = "Critical or high vulnerabilities found in stored container images"

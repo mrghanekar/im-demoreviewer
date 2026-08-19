@@ -1,6 +1,6 @@
 """Cloud SQL and database checks.
 
-Checks: DB-001 through DB-015
+Checks: DB-001 through DB-016
 """
 
 import logging
@@ -74,7 +74,16 @@ class SQLNoSSL(BaseCheck):
                 name = i.get("name", "")
                 settings = i.get("settings", {})
                 ip_config = settings.get("ipConfiguration", {})
-                if not ip_config.get("requireSsl", False) and not ip_config.get("sslMode", "") == "ENCRYPTED_ONLY":
+                # sslMode has two enforcing values. TRUSTED_CLIENT_CERTIFICATE_REQUIRED
+                # is strictly stricter than ENCRYPTED_ONLY, so treating only the
+                # latter as compliant reported the most locked-down instances as
+                # findings.
+                ssl_mode = ip_config.get("sslMode", "")
+                enforced = ssl_mode in (
+                    "ENCRYPTED_ONLY",
+                    "TRUSTED_CLIENT_CERTIFICATE_REQUIRED",
+                )
+                if not ip_config.get("requireSsl", False) and not enforced:
                     findings.append(CheckResult(
                         check_id=self.id, title=self.title, description=self.description,
                         severity=self.severity, category=self.category, service=self.service,
@@ -614,34 +623,6 @@ class CloudSQLIAMAuthDisabled(BaseCheck):
                     recommended_state="Set --database-flags=cloudsql.iam_authentication=on",
                     fix_command=f"gcloud sql instances patch {name} --database-flags=cloudsql.iam_authentication=on --project={project_id}",
                     references=self.references,
-                ))
-        return findings
-
-
-class CloudSQLNoPasswordPolicy(BaseCheck):
-    id = "DB-017"
-    title = "Cloud SQL instance has no password validation policy"
-    description = "Password policy enforces complexity/length/reuse rules for built-in DB users."
-    severity = Severity.MEDIUM
-    category = Category.SECURITY
-    service = "Cloud SQL"
-    service_category = ServiceCategory.DATABASES
-    references = ["https://cloud.google.com/sql/docs/postgres/built-in-authentication"]
-    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.5.17", "A.8.5"]}
-
-    async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
-        findings: list[CheckResult] = []
-        for i in await _list_sql_instances(gcloud_runner, project_id):
-            name = i.get("name", "")
-            pol = i.get("settings", {}).get("passwordValidationPolicy", {})
-            if not pol or not pol.get("enablePasswordPolicy"):
-                findings.append(CheckResult(
-                    check_id=self.id, title=self.title, description=self.description,
-                    severity=self.severity, category=self.category, service=self.service,
-                    resource_name=f"sql/{name}", project_id=project_id,
-                    current_state="No password validation policy configured",
-                    recommended_state="Enable password policy with min-length, complexity, reuse-interval",
-                    fix_command="", references=self.references,
                 ))
         return findings
 

@@ -419,7 +419,7 @@ class BillingExportNotConfigured(BaseCheck):
     id = "BIL-010"
     title = "Billing export to BigQuery not configured"
     description = "Exporting billing data to BigQuery enables detailed cost analysis and custom reports."
-    severity = Severity.MEDIUM
+    severity = Severity.INFO
     category = Category.COST
     service = "Billing"
     service_category = ServiceCategory.BILLING
@@ -430,7 +430,7 @@ class BillingExportNotConfigured(BaseCheck):
         # This is informational — we can't easily check billing export via gcloud
         return [CheckResult(
             check_id=self.id, title=self.title, description=self.description,
-            severity=Severity.INFO, category=self.category, service=self.service,
+            severity=self.severity, category=self.category, service=self.service,
             resource_name=f"projects/{project_id}", project_id=project_id,
             resource_link=self.console_link("billing", project_id),
             current_state="Verify billing export to BigQuery is configured",

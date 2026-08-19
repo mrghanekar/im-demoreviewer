@@ -387,6 +387,14 @@ class HealthResponse(BaseModel):
         default=True,
         description="Whether the deploy opted in to Vertex AI features (Explain + Cost Saving). Drives UI gating.",
     )
+    service_name: str = Field(
+        default="",
+        description="Cloud Run service name (K_SERVICE). Empty when running locally.",
+    )
+    region: str = Field(
+        default="",
+        description="Region this revision was deployed to, from DR_REGION. Empty when unknown; the UI then omits --region from the log command rather than guessing.",
+    )
 
 
 class CheckCatalogEntry(BaseModel):

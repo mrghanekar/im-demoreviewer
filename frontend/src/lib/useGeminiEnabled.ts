@@ -22,3 +22,24 @@ export function useGeminiEnabled(): boolean {
   });
   return data?.gemini_enabled !== false;
 }
+
+/**
+ * The `gcloud run services logs read ...` command for *this* deployment.
+ *
+ * The service name and region come from /health rather than being hardcoded:
+ * the banner used to name asia-south1 unconditionally, so anyone who deployed
+ * elsewhere was handed a command that reads the wrong service's logs, or none.
+ * Falls back to omitting --region when the backend does not know it (a local
+ * run, or a deployment from before setup.sh started passing DR_REGION).
+ */
+export function useLogsCommand(): string {
+  const { data } = useQuery({
+    queryKey: ['health'],
+    queryFn: fetchHealth,
+    staleTime: Infinity,
+    retry: 1,
+  });
+  const service = data?.service_name || 'democratized-reviewer';
+  const region = data?.region ? ` --region=${data.region}` : '';
+  return `gcloud run services logs read ${service}${region} --limit=50`;
+}

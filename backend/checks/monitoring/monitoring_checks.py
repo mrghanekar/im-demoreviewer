@@ -172,7 +172,10 @@ class LogRetentionDefault(BaseCheck):
     service = "Monitoring"
     service_category = ServiceCategory.MONITORING
     references = ["https://cloud.google.com/logging/docs/storage"]
-    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.15", "A.5.33"], "CERT_IN": ["VI"]}
+    # Deliberately NOT tagged CERT_IN. Direction VI requires 180 days; a check
+    # that passes at 90 is not evidence for it. REG-001 carries that mapping
+    # against the correct threshold.
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.15", "A.5.33"]}
 
     # Compliance threshold — buckets retaining fewer days than this are flagged.
     THRESHOLD_DAYS = 90
@@ -351,6 +354,22 @@ class NoSLOsDefined(BaseCheck):
         return findings
 
 
+def _sink_bucket_name(destination: str) -> str:
+    """Pull the bucket name out of a GCS log-sink destination.
+
+    Logging writes ``storage.googleapis.com/<bucket>``; the Storage API's own
+    resource form ``storage.googleapis.com/projects/_/buckets/<bucket>`` shows
+    up too, so handle both.
+    """
+    rest = destination[len("storage.googleapis.com/"):].strip("/")
+    if rest.startswith("projects/"):
+        parts = rest.split("/")
+        if len(parts) >= 4 and parts[2] == "buckets":
+            return parts[3]
+        return ""
+    return rest.split("/")[0]
+
+
 class PublicLogSink(BaseCheck):
     id = "MON-012"
     title = "Log sink writes to an external GCS destination"
@@ -370,9 +389,34 @@ class PublicLogSink(BaseCheck):
             )
         except Exception:
             return findings
-        for s in (sinks if isinstance(sinks, list) else []):
+        gcs_sinks = [
+            s for s in (sinks if isinstance(sinks, list) else [])
+            if str(s.get("destination", "")).startswith("storage.googleapis.com/")
+        ]
+        if not gcs_sinks:
+            return findings
+
+        # A GCS bucket name is global and carries no project, so substring-
+        # matching the project ID against the destination was meaningless: it
+        # flagged every same-project export bucket whose name did not happen to
+        # contain the project ID. Ask which buckets this project actually owns.
+        try:
+            own_buckets = await gcloud_runner.run(
+                f"gcloud storage buckets list --project={project_id} --format=json"
+            )
+        except Exception:
+            # Without the bucket list there is no way to tell own from external.
+            # Reporting nothing beats reporting everything.
+            return findings
+        own_names = {
+            str(b.get("name", "")).strip("/")
+            for b in (own_buckets if isinstance(own_buckets, list) else [])
+        }
+
+        for s in gcs_sinks:
             dest = s.get("destination", "")
-            if dest.startswith("storage.googleapis.com/") and project_id not in dest:
+            bucket = _sink_bucket_name(dest)
+            if bucket and bucket not in own_names:
                 findings.append(CheckResult(
                     check_id=self.id, title=self.title, description=self.description,
                     severity=self.severity, category=self.category, service=self.service,

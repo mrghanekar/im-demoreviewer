@@ -9,6 +9,7 @@ from backend.checks.iam.role_bindings import (
     OverPermissionedServiceAccounts,
     NoCustomRoles,
     NoOrgLevelIAMAudit,
+    DomainRestrictedSharingNotEnforced,
 )
 from backend.checks.iam.service_accounts import (
     UserManagedSAKeys,
@@ -180,3 +181,46 @@ class TestNoOrgLevelIAMAudit:
         findings = await check.execute(PROJECT, runner)
         assert len(findings) == 1
         assert findings[0].severity == "info"
+
+
+# ---- IAM-012: Domain-restricted sharing ----
+# SEC-001 (OrgPolicyDomainRestriction) was removed as a duplicate of IAM-012.
+
+@pytest.mark.asyncio
+class TestDomainRestrictedSharingNotEnforced:
+
+    @staticmethod
+    def _runner(parent, policy=None):
+        async def run(cmd):
+            if "projects describe" in cmd:
+                return {"projectId": PROJECT, "parent": parent} if parent else {"projectId": PROJECT}
+            if policy is None:
+                raise RuntimeError("no effective policy")
+            return policy
+        r = MagicMock()
+        r.run = AsyncMock(side_effect=run)
+        return r
+
+    async def test_skips_standalone_project(self):
+        runner = self._runner(parent=None)
+        findings = await DomainRestrictedSharingNotEnforced().execute(PROJECT, runner)
+        assert findings == []
+
+    async def test_skips_project_under_folder_only(self):
+        runner = self._runner(parent={"type": "folder", "id": "123"})
+        findings = await DomainRestrictedSharingNotEnforced().execute(PROJECT, runner)
+        assert findings == []
+
+    async def test_flags_org_project_without_policy(self):
+        runner = self._runner(parent={"type": "organization", "id": "456"})
+        findings = await DomainRestrictedSharingNotEnforced().execute(PROJECT, runner)
+        assert len(findings) == 1
+        assert findings[0].severity == "high"
+
+    async def test_passes_when_policy_set(self):
+        runner = self._runner(
+            parent={"type": "organization", "id": "456"},
+            policy={"spec": {"rules": [{"values": {"allowedValues": ["C0xxxxxxx"]}}]}},
+        )
+        findings = await DomainRestrictedSharingNotEnforced().execute(PROJECT, runner)
+        assert findings == []

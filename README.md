@@ -1,6 +1,6 @@
 # Democratized Reviewer
 
-> **Audit your Google Cloud environment against 236 best-practice checks across 28 service areas.**
+> **Audit your Google Cloud environment against 234 best-practice checks across 28 service areas.**
 > Viewer-only access. Actionable fix commands. Per-finding AI explanations via Vertex Gemini.
 
 **Democratized Reviewer** is a audit tool designed for Cloud practioners, DevOps security engineers, SREs, and cloud architects etc all related roles. It deploys as a serverless container on **Cloud Run**, scanning your organization or project using strictly **read-only** IAM role.
@@ -14,7 +14,7 @@
 - **Modern Dashboard** — React-based UI with dark mode, severity filtering, and exportable reports.
 - **Actionable Fixes** — Every finding includes a precise gcloud command to remediate the issue.
 - **AI-Powered Explanations** — Uses Gemini to explain findings and suggest fixes in plain English.
-- **236 Checks** — Covers 28 categories: GKE, GCE, GCS, Cloud SQL, AlloyDB, Spanner, Firestore, Memorystore, Security, Networking, IAM, IAP, Data, Monitoring, Billing, Vertex AI, Cloud Run, Cloud Run Jobs, Cloud Functions, App Engine, Composer, Secret Manager, Cloud Build, Artifact Registry, API Security, Patch Management, Compliance & Residency, and org-level Architecture Posture.
+- **234 Checks** — Covers 28 categories: GKE, GCE, GCS, Cloud SQL, AlloyDB, Spanner, Firestore, Memorystore, Security, Networking, IAM, IAP, Data, Monitoring, Billing, Vertex AI, Cloud Run, Cloud Run Jobs, Cloud Functions, App Engine, Composer, Secret Manager, Cloud Build, Artifact Registry, API Security, Patch Management, Compliance & Residency, and org-level Architecture Posture.
 - **Compliance Mapping** — Checks are tagged with the controls they are evidence for (CIS GCP Foundation v3.0, ISO/IEC 27001:2022 Annex A, CERT-In Directions 2022, DPDP Act 2023). Reports and the `/scans/{id}/compliance` endpoint regroup findings by control instead of by service.
 - **Secure by Design** — Private by default. Access is gated by Cloud Run IAM; open the dashboard via `gcloud run services proxy`.
 
@@ -168,8 +168,9 @@ The security model explicitly separates **Deployment** from **Runtime** privileg
 
 2.  **Runtime (The Application):**
     -   The application itself runs as a dedicated Service Account (`democratized-reviewer-sa`).
-    -   This account is granted **strictly Read-Only / Viewer** roles (e.g., `roles/viewer`, `roles/iam.securityReviewer`).
-    -   **It cannot modify your cloud resources.** Even if compromised, it can only *read* configuration, not change it.
+    -   This account is granted **strictly Read-Only / Viewer** roles (e.g., `roles/viewer`, `roles/iam.securityReviewer`) over the resources it audits.
+    -   **It cannot modify the resources it scans.** Every check is a read-only `gcloud` call; even if compromised, the account can only *read* configuration, not change it.
+    -   The one write grant is `roles/storage.objectAdmin` scoped to the report-export bucket the setup script creates. Report export writes there; nothing else does. Skip the bucket at setup time if you would rather export only through the browser.
 
 3.  **Organization Policy (Optional Override):**
     -   During setup, you may be prompted to override the `iam.allowedPolicyMemberDomains` constraint.
@@ -196,8 +197,16 @@ moving that state to a shared store.
 
 ## Service Checks Catalog
 
-The tool performs **236** automated checks across your GCP environment
+The tool performs **234** automated checks across your GCP environment
 (post-dedup; original v1 catalog was 130).
+
+> **2026-08 audit expansion** added API Security, Artifact Registry, Patch
+> Management and Compliance & Residency, and tagged every check with the
+> CIS GCP v3.0 / ISO 27001:2022 / CERT-In 2022 / DPDP 2023 controls it is
+> evidence for. See [docs/audit-coverage.md](docs/audit-coverage.md) for what
+> the tool can and cannot evidence in a formal audit — including the domains
+> (MFA/SSO posture, CVE enumeration, DLP content scanning, IR process) that
+> need a different instrument.
 
 > **2026-05 catalog expansion** added 9 new service categories
 > (Cloud Run, Cloud Functions, Secret Manager, Cloud Build, Memorystore,
@@ -338,7 +347,6 @@ Databases/
 ### Security & Org Policies
 ```
 Security/
-├── SEC-001                  # Org policy not enforcing domain restriction
 ├── SEC-002                  # VPC Service Controls not configured
 ├── SEC-003                  # Security Command Center not enabled
 ├── SEC-007                  # Web Security Scanner not configured
@@ -474,7 +482,7 @@ GKE:        GKE-021 deprecated K8s version           |  GKE-022 Backup for GKE o
 
 GCS:        GCS-011 CMEK key in same project         |  GCS-012 no Pub/Sub notifications
 
-Cloud SQL:  DB-016 IAM DB auth disabled              |  DB-017 no password policy
+Cloud SQL:  DB-016 IAM DB auth disabled              |  DB-013 no password policy
 
 Monitoring: MON-011 no SLOs                          |  MON-012 sink to external GCS
 
@@ -511,7 +519,7 @@ Billing:    BIL-011 BigQuery LOGICAL billing         |  BIL-012 idle GKE node po
 democratized-reviewer/
 ├── backend/                 # FastAPI application
 │   ├── api/                 # API routes and middleware
-│   ├── checks/              # Logic for 236 GCP checks
+│   ├── checks/              # Logic for 234 GCP checks
 │   ├── core/                # Core engine, scanning logic
 │   └── utils/               # Helpers (formatting, GCP)
 ├── frontend/                # React application
@@ -556,7 +564,7 @@ flowchart TD
             
             subgraph Engine ["⚙️ Audit Engine"]
                 Scanner["Orchestrator"]
-                Checks["📚 236 Checks"]
+                Checks["📚 234 Checks"]
             end
         end
     end

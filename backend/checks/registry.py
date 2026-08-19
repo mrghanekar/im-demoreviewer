@@ -21,6 +21,42 @@ _registry: dict[str, BaseCheck] = {}
 _discovered: bool = False
 
 
+class DuplicateCheckIdError(Exception):
+    """Two check classes claim the same check ID.
+
+    Silently overwriting would mean one of the checks never runs, so this
+    must fail discovery loudly.
+    """
+
+    def __init__(self, check_id: str, existing_cls: type, new_cls: type) -> None:
+        super().__init__(
+            f"Duplicate check ID '{check_id}': "
+            f"{new_cls.__module__}.{new_cls.__name__} conflicts with "
+            f"{existing_cls.__module__}.{existing_cls.__name__}"
+        )
+        self.check_id = check_id
+        self.existing_cls = existing_cls
+        self.new_cls = new_cls
+
+
+def _register_check_class(obj: type[BaseCheck]) -> None:
+    """Instantiate and register a check class, rejecting ID collisions.
+
+    Re-registering the same class is a no-op side effect of modules
+    re-exporting check classes; only a *different* class claiming an
+    already-taken ID is an error.
+    """
+    check_instance = obj()
+    check_id = check_instance.id
+
+    existing = _registry.get(check_id)
+    if existing is not None and type(existing) is not obj:
+        raise DuplicateCheckIdError(check_id, type(existing), obj)
+
+    _registry[check_id] = check_instance
+    logger.debug("Registered check: %s (%s)", check_id, obj.__name__)
+
+
 def discover_checks() -> dict[str, BaseCheck]:
     """Discover and instantiate all BaseCheck subclasses in the checks package.
     
@@ -60,17 +96,7 @@ def discover_checks() -> dict[str, BaseCheck]:
                 and obj is not BaseCheck
                 and getattr(obj, "id", "")  # Must have a check ID
             ):
-                check_instance = obj()
-                check_id = check_instance.id
-
-                if check_id in _registry:
-                    logger.warning(
-                        "Duplicate check ID '%s' — %s overwrites %s",
-                        check_id, obj.__name__, type(_registry[check_id]).__name__,
-                    )
-
-                _registry[check_id] = check_instance
-                logger.debug("Registered check: %s (%s)", check_id, obj.__name__)
+                _register_check_class(obj)
 
     _discovered = True
     logger.info("Discovered %d checks", len(_registry))

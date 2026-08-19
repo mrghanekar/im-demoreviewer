@@ -5,14 +5,14 @@
 #
 # Usage (manual trigger):
 #   gcloud builds submit --config cloudbuild.yaml \
-#     --substitutions=_REGION=us-central1,_SA_EMAIL=democratized-reviewer-sa@PROJECT.iam.gserviceaccount.com
+#     --substitutions=_REGION=asia-south1,_SA_EMAIL=democratized-reviewer-sa@PROJECT.iam.gserviceaccount.com
 #
 # The setup.sh script uses `gcloud builds submit --tag` for simplicity,
 # but this file provides a more configurable pipeline.
 # =============================================================================
 
 substitutions:
-  _REGION: us-central1
+  _REGION: asia-south1
   _SERVICE_NAME: democratized-reviewer
   _AR_REPO: democratized-reviewer
   # Runtime service account — MUST be supplied; defaults to a sentinel that
@@ -41,6 +41,11 @@ steps:
 
   # Deploy to Cloud Run. Private by default (Cloud Run IAM gates access).
   # Pinned to a single instance because the app keeps in-memory state.
+  # Resources mirror setup.sh: 1Gi OOM'd on real customer projects (236
+  # checks × ~5MB of in-flight gcloud JSON), so 2Gi + 5 concurrent checks;
+  # a full scan of a large project can exceed 5 minutes, hence timeout=3600.
+  # --update-env-vars (not --set-env-vars) so a prior setup.sh deploy's
+  # runtime configuration (scan scope, SA email, bucket, …) survives.
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
     args:
@@ -52,9 +57,11 @@ steps:
       - '--region=${_REGION}'
       - '--service-account=${_SA_EMAIL}'
       - '--no-allow-unauthenticated'
-      - '--memory=1Gi'
-      - '--cpu=1'
-      - '--timeout=300'
+      - '--update-env-vars=DR_MAX_CONCURRENT_CHECKS=5'
+      - '--memory=2Gi'
+      - '--cpu=2'
+      - '--cpu-boost'
+      - '--timeout=3600'
       - '--concurrency=80'
       - '--min-instances=1'
       - '--max-instances=1'

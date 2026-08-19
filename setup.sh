@@ -92,7 +92,7 @@ print_banner() {
     "$CW" "$NC" \
     "$CW" "$NC"
   echo -e "${P_DIM}   ────────────────────────────────────────────────────────────${NC}"
-  echo -e "${P_DIM}   236 checks · 28 service areas · viewer-only · gemini-assisted${NC}"
+  echo -e "${P_DIM}   234 checks · 28 service areas · viewer-only · gemini-assisted${NC}"
   echo ""
 
   echo -e "${P_SECONDARY}   ${P_PRIMARY}●${P_SECONDARY}  SYSTEM READY  ·  initializing deployment sequence...${NC}"
@@ -113,6 +113,7 @@ STATE_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/democratized-reviewer"
 mkdir -p "$STATE_DIR"
 ORG_POLICY_STAMP="$STATE_DIR/org_policy_overridden"
 ORG_POLICY_SNAPSHOT="$STATE_DIR/org_policy_original.json"
+DEPLOY_STATE_FILE="$STATE_DIR/deploy_state.env"
 
 # Defaults to satisfy set -u for vars that may not be set in --remove path
 DEPLOY_PROJECT="${DEPLOY_PROJECT:-}"
@@ -137,10 +138,31 @@ IMAGE="${IMAGE:-}"
 # Drives: aiplatform.user role grant, DR_GEMINI_ENABLED env var, and the
 # /health flag the frontend reads to hide the Explain / Cost Saving UI.
 GEMINI_ENABLED="${GEMINI_ENABLED:-false}"
+DATA_BUCKET="${DATA_BUCKET:-}"
+# Space-separated lists of roles actually bound this run — persisted so
+# --remove revokes exactly what was granted, no more and no less.
+PROJECT_ROLES_GRANTED="${PROJECT_ROLES_GRANTED:-}"
+ORG_ROLES_GRANTED="${ORG_ROLES_GRANTED:-}"
 
 info()    { echo -e "${P_SECONDARY}   >>${NC} ${1}"; }
 warn()    { echo -e "${P_WARN}   [!] WARNING:${NC} ${1}"; }
 error()   { echo -e "${P_ERROR}   [X] CRITICAL ERROR:${NC} ${1}"; }
+
+# Teardown must target what deploy actually created — guessing the region at
+# --remove time strands a min-instances=1 Cloud Run service in any region
+# other than the default. Rewritten whole after each phase so an aborted
+# install still leaves an accurate record for --remove.
+save_deploy_state() {
+  cat > "$DEPLOY_STATE_FILE" <<EOF
+DR_STATE_PROJECT='${DEPLOY_PROJECT}'
+DR_STATE_REGION='${REGION}'
+DR_STATE_SA_EMAIL='${SA_EMAIL}'
+DR_STATE_BUCKET='${DATA_BUCKET}'
+DR_STATE_ORG_ID='${ORG_ID}'
+DR_STATE_PROJECT_ROLES='${PROJECT_ROLES_GRANTED}'
+DR_STATE_ORG_ROLES='${ORG_ROLES_GRANTED}'
+EOF
+}
 
 # Cleanup on Ctrl+C
 cleanup_trap() {
@@ -430,6 +452,7 @@ setup_service_account() {
         outcome=$(cat "${_logdir}/${role//\//_}" 2>/dev/null || echo "FAIL ${role}")
         if [[ "$outcome" == OK* ]]; then
           status_done "Bound: ${role}"
+          PROJECT_ROLES_GRANTED="${PROJECT_ROLES_GRANTED}${PROJECT_ROLES_GRANTED:+ }${role}"
         else
           status_fail "Failed to bind: ${role}"
           _failed_roles+=("${role}")
@@ -475,40 +498,60 @@ setup_service_account() {
       PARENT_TYPE="${_PARENT_INFO##*	}"
 
       if [[ "$PARENT_TYPE" == "organization" && -n "$ORG_ID" ]]; then
-        info "Detecting Organization Scope (Org: ${ORG_ID})..."
-
-        # Same parallel pattern for org-level bindings.
-        local _org_pids=() _org_logdir
-        _org_logdir="$(mktemp -d -t dr-iam-org.XXXXXX)"
+        echo ""
+        info "Project ${DEPLOY_PROJECT} belongs to Organization ${ORG_ID}."
+        info "Organization-wide checks (whole-org scans, org-scope project"
+        info "enumeration) need the same read-only roles at the ORGANIZATION level:"
         for role in "${ROLES[@]}"; do
-          (
-            if gcloud organizations add-iam-policy-binding "${ORG_ID}" \
-              --member="serviceAccount:${SA_EMAIL}" \
-              --role="${role}" \
-              --condition=None --quiet >/dev/null 2>&1; then
-              echo "OK" > "${_org_logdir}/${role//\//_}"
+          echo -e "     - ${role}"
+        done
+        warn "This is BROADER than the project-scoped deployment you just confirmed:"
+        warn "it gives ${SA_EMAIL} read access to EVERY project under org ${ORG_ID}."
+
+        if confirm "Grant these roles at ORGANIZATION scope (org ${ORG_ID})?"; then
+          info "Binding ${#ROLES[@]} org-level roles in parallel..."
+          # Same parallel pattern for org-level bindings.
+          local _org_pids=() _org_logdir
+          _org_logdir="$(mktemp -d -t dr-iam-org.XXXXXX)"
+          for role in "${ROLES[@]}"; do
+            (
+              if gcloud organizations add-iam-policy-binding "${ORG_ID}" \
+                --member="serviceAccount:${SA_EMAIL}" \
+                --role="${role}" \
+                --condition=None --quiet >/dev/null 2>&1; then
+                echo "OK" > "${_org_logdir}/${role//\//_}"
+              else
+                echo "FAIL" > "${_org_logdir}/${role//\//_}"
+              fi
+            ) &
+            _org_pids+=($!)
+          done
+          wait "${_org_pids[@]}"
+          ORG_ROLES_SUCCESS=true
+          for role in "${ROLES[@]}"; do
+            if [[ "$(cat "${_org_logdir}/${role//\//_}" 2>/dev/null)" == "OK" ]]; then
+              ORG_ROLES_GRANTED="${ORG_ROLES_GRANTED}${ORG_ROLES_GRANTED:+ }${role}"
             else
-              echo "FAIL" > "${_org_logdir}/${role//\//_}"
+              ORG_ROLES_SUCCESS=false
             fi
-          ) &
-          _org_pids+=($!)
-        done
-        wait "${_org_pids[@]}"
-        ORG_ROLES_SUCCESS=true
-        for role in "${ROLES[@]}"; do
-          [[ "$(cat "${_org_logdir}/${role//\//_}" 2>/dev/null)" == "OK" ]] || ORG_ROLES_SUCCESS=false
-        done
-        rm -rf "$_org_logdir"
+          done
+          rm -rf "$_org_logdir"
 
-        if [[ "$ORG_ROLES_SUCCESS" == true ]]; then
-          status_done "Organization-level permissions established automatically."
+          if [[ "$ORG_ROLES_SUCCESS" == true ]]; then
+            status_done "Organization-level permissions established."
+          else
+            echo ""
+            echo -e "${P_WARN}   [!] NOTE FOR ORG SCANS:${NC} Project-level permissions established."
+            echo -e "       Automatic Organization-level assignment failed (Insufficient Permissions)."
+            echo -e "       To scan your entire Organization, you must manually grant"
+            echo -e "       'Viewer' and 'Cloud Asset Viewer' to ${SA_EMAIL}"
+            echo -e "       at the Organization level via Cloud Console."
+          fi
         else
-          echo ""
-          echo -e "${P_WARN}   [!] NOTE FOR ORG SCANS:${NC} Project-level permissions established."
-          echo -e "       Automatic Organization-level assignment failed (Insufficient Permissions)."
-          echo -e "       To scan your entire Organization, you must manually grant"
-          echo -e "       'Viewer' and 'Cloud Asset Viewer' to ${SA_EMAIL}"
-          echo -e "       at the Organization level via Cloud Console."
+          info "Skipping organization-level grants. Deployment stays project-scoped."
+          info "Impact: org-wide checks (whole-org scans, org-scope project"
+          info "enumeration) will have no data; project-scope checks are unaffected."
+          info "Grant later at any time with:  ./setup.sh --grant-on-org ${ORG_ID}"
         fi
       else
         echo ""
@@ -519,6 +562,7 @@ setup_service_account() {
   else
       warn "Skipping role assignment."
   fi
+  save_deploy_state
   echo ""
 }
 
@@ -539,7 +583,7 @@ enable_apis() {
     cloudresourcemanager.googleapis.com  # Project metadata + IAM-policy reads
     cloudasset.googleapis.com        # Org-scope project enumeration
     serviceusage.googleapis.com      # The engine's enabled-API pre-skip needs this
-    orgpolicy.googleapis.com         # Org-policy reads (SEC-001 + POST-001)
+    orgpolicy.googleapis.com         # Org-policy reads (IAM-012 + POST-001)
     recommender.googleapis.com       # POST-004 + BIL-006/007
   )
 
@@ -646,10 +690,14 @@ enable_apis() {
     GEMINI_ENABLED=true
     # Grant predict permission to the deploy SA (idempotent — gcloud is a no-op
     # if the binding already exists).
-    gcloud projects add-iam-policy-binding "${DEPLOY_PROJECT}" \
+    if gcloud projects add-iam-policy-binding "${DEPLOY_PROJECT}" \
       --member="serviceAccount:${SA_EMAIL}" \
-      --role="roles/aiplatform.user" --condition=None --quiet >/dev/null 2>&1 || \
+      --role="roles/aiplatform.user" --condition=None --quiet >/dev/null 2>&1; then
+      PROJECT_ROLES_GRANTED="${PROJECT_ROLES_GRANTED}${PROJECT_ROLES_GRANTED:+ }roles/aiplatform.user"
+      save_deploy_state
+    else
       warn "Could not grant roles/aiplatform.user to ${SA_EMAIL} — Gemini calls may fail."
+    fi
   else
     echo -e "${P_TEXT}   Vertex AI (Gemini) is OFF on ${DEPLOY_PROJECT}.${NC}"
     echo -e "${P_DIM}   Enabling it powers two optional UI features:${NC}"
@@ -666,10 +714,14 @@ enable_apis() {
         echo ""
         status_done "Vertex AI enabled"
         GEMINI_ENABLED=true
-        gcloud projects add-iam-policy-binding "${DEPLOY_PROJECT}" \
+        if gcloud projects add-iam-policy-binding "${DEPLOY_PROJECT}" \
           --member="serviceAccount:${SA_EMAIL}" \
-          --role="roles/aiplatform.user" --condition=None --quiet >/dev/null 2>&1 || \
+          --role="roles/aiplatform.user" --condition=None --quiet >/dev/null 2>&1; then
+          PROJECT_ROLES_GRANTED="${PROJECT_ROLES_GRANTED}${PROJECT_ROLES_GRANTED:+ }roles/aiplatform.user"
+          save_deploy_state
+        else
           warn "Could not grant roles/aiplatform.user to ${SA_EMAIL} — Gemini calls may fail."
+        fi
       else
         echo ""
         status_fail "Could not enable ${GEMINI_API} (org policy may forbid). Continuing without Gemini."
@@ -736,6 +788,7 @@ EOF
     warn "Could not apply lifecycle rule to scan bucket (continuing without it)"
   fi
   rm -f "$lifecycle_file"
+  save_deploy_state
 }
 
 build_and_deploy() {
@@ -772,6 +825,9 @@ build_and_deploy() {
   ENV_VARS="${ENV_VARS},DR_SA_EMAIL=${SA_EMAIL}"
   ENV_VARS="${ENV_VARS},DR_GCS_EXPORT_BUCKET=${DATA_BUCKET}"
   ENV_VARS="${ENV_VARS},DR_GEMINI_ENABLED=${GEMINI_ENABLED}"
+  # Cloud Run injects K_SERVICE but not the region, and the UI needs it to
+  # print a correct "read the logs" command for this deployment.
+  ENV_VARS="${ENV_VARS},DR_REGION=${REGION}"
   
   if [[ -n "$ORG_ID" ]]; then
     ENV_VARS="${ENV_VARS},DR_DEFAULT_ORG_ID=${ORG_ID}"
@@ -794,7 +850,7 @@ EOF
   # State is in-memory (ScanStore, WebSocket queues, rate limiter).
   # Pin to a single instance to keep that consistent.
   # Memory + concurrency tuning: 1Gi was OOM'ing on real customer projects
-  # because 236 checks × ~5MB of in-flight gcloud JSON each can push past
+  # because 234 checks × ~5MB of in-flight gcloud JSON each can push past
   # 1GB peak when many checks run concurrently. 2Gi + max_concurrent_checks=5
   # gives ~3x headroom and keeps CPU under 100%. Bump again if scanning very
   # large orgs.
@@ -821,6 +877,7 @@ EOF
 
   if gcloud run deploy democratized-reviewer "${DEPLOY_FLAGS[@]}"; then
       status_done "Service Endpoint Active"
+      save_deploy_state
   else
       status_fail "Deployment Failed"
       exit 1
@@ -987,34 +1044,92 @@ print_summary() {
 
 remove_deployment() {
   step "REMOVE DEPLOYMENT"
-  
+
+  # Deploys from older script versions predate the state record — fall back
+  # to the old assumptions, loudly, so a wrong-region miss is visible.
+  HAVE_STATE=false
+  if [[ -f "$DEPLOY_STATE_FILE" ]]; then
+    # shellcheck source=/dev/null
+    . "$DEPLOY_STATE_FILE"
+    HAVE_STATE=true
+    info "Loaded deployment record: ${DEPLOY_STATE_FILE}"
+  else
+    warn "No deployment record found at ${DEPLOY_STATE_FILE}."
+    warn "Falling back to default names/region — verify the plan below carefully."
+  fi
+
+  if [[ -z "$DEPLOY_PROJECT" ]]; then
+      DEPLOY_PROJECT="${DR_STATE_PROJECT:-}"
+  fi
   if [[ -z "$DEPLOY_PROJECT" ]]; then
       DEPLOY_PROJECT="${CURRENT_PROJECT:-}"
   fi
-  
+
   if [[ -z "$DEPLOY_PROJECT" ]]; then
     read -rp "   > Enter Target Project ID to clean up: " DEPLOY_PROJECT
   fi
-  
+
   if [[ -z "$DEPLOY_PROJECT" ]]; then
      error "Project ID is mandatory for removal."
      exit 1
   fi
 
+  # Precedence: --region flag > recorded state > legacy default (with warning).
+  if [[ -z "$REGION" ]]; then
+      REGION="${DR_STATE_REGION:-}"
+  fi
+  if [[ -z "$REGION" ]]; then
+      REGION="asia-south1"
+      warn "Deployed region unknown — assuming '${REGION}'. If you deployed to a"
+      warn "different region, the Cloud Run service and Artifact Registry will NOT"
+      warn "be found (and the service keeps billing at min-instances=1)."
+      warn "Re-run with:  ./setup.sh --remove --region <your-region>"
+  fi
+
+  SA_EMAIL="${DR_STATE_SA_EMAIL:-democratized-reviewer-sa@${DEPLOY_PROJECT}.iam.gserviceaccount.com}"
+  DATA_BUCKET="${DR_STATE_BUCKET:-democratized-reviewer-${DEPLOY_PROJECT}-data}"
+  if [[ -z "$ORG_ID" ]]; then
+      ORG_ID="${DR_STATE_ORG_ID:-}"
+  fi
+
+  # Revoke exactly what deploy granted when we know it; otherwise fall back
+  # to the full historical set (older setups granted all of these).
+  PROJECT_ROLES=()
+  if [[ -n "${DR_STATE_PROJECT_ROLES:-}" ]]; then
+    read -r -a PROJECT_ROLES <<< "${DR_STATE_PROJECT_ROLES}"
+  else
+    PROJECT_ROLES=(
+      roles/viewer
+      roles/iam.securityReviewer
+      roles/cloudasset.viewer
+      roles/orgpolicy.policyViewer
+      roles/recommender.viewer
+      roles/billing.viewer
+    )
+  fi
+  ORG_ROLES=()
+  if [[ -n "${DR_STATE_ORG_ROLES:-}" ]]; then
+    read -r -a ORG_ROLES <<< "${DR_STATE_ORG_ROLES}"
+  fi
+
   warn "This will DELETE the following resources in project '${DEPLOY_PROJECT}':"
-  echo -e "     - Cloud Run Service: democratized-reviewer"
-  echo -e "     - Artifact Registry: democratized-reviewer"
-  echo -e "     - GCS Bucket: democratized-reviewer-${DEPLOY_PROJECT}-data"
-  echo -e "     - Service Account: democratized-reviewer-sa"
+  echo -e "     - Cloud Run Service: democratized-reviewer (region: ${REGION})"
+  echo -e "     - Artifact Registry: democratized-reviewer (region: ${REGION})"
+  echo -e "     - GCS Bucket: ${DATA_BUCKET}"
+  echo -e "     - Service Account: ${SA_EMAIL}"
+  echo -e "     - Project IAM bindings for the service account (${#PROJECT_ROLES[@]} roles)"
+  if [[ -n "$ORG_ID" && ${#ORG_ROLES[@]} -gt 0 ]]; then
+    echo -e "     - Org-level IAM bindings on org ${ORG_ID} (asked separately below)"
+  fi
   echo ""
-  
+
   if ! confirm "Proceed with destructive removal?"; then
       exit 0
   fi
 
   # 1. Cloud Run
   status_wait "Deleting Cloud Run Service..."
-  if gcloud run services delete democratized-reviewer --project="${DEPLOY_PROJECT}" --region="${REGION:-asia-south1}" --quiet >/dev/null 2>&1; then
+  if gcloud run services delete democratized-reviewer --project="${DEPLOY_PROJECT}" --region="${REGION}" --quiet >/dev/null 2>&1; then
      status_done "Cloud Run Service Deleted"
   else
      warn "Cloud Run Service not found or already deleted."
@@ -1022,14 +1137,13 @@ remove_deployment() {
 
   # 2. Artifact Registry
   status_wait "Deleting Artifact Registry..."
-  if gcloud artifacts repositories delete democratized-reviewer --location="${REGION:-asia-south1}" --project="${DEPLOY_PROJECT}" --quiet >/dev/null 2>&1; then
+  if gcloud artifacts repositories delete democratized-reviewer --location="${REGION}" --project="${DEPLOY_PROJECT}" --quiet >/dev/null 2>&1; then
      status_done "Artifact Registry Deleted"
   else
      warn "Artifact Registry not found or already deleted."
   fi
 
   # 3. GCS Bucket
-  DATA_BUCKET="democratized-reviewer-${DEPLOY_PROJECT}-data"
   status_wait "Deleting GCS Bucket..."
   if gcloud storage rm -r "gs://${DATA_BUCKET}" --project="${DEPLOY_PROJECT}" --quiet >/dev/null 2>&1; then
      status_done "GCS Bucket Deleted"
@@ -1038,25 +1152,64 @@ remove_deployment() {
   fi
 
   # 4. Service Account & IAM
-  SA_EMAIL="democratized-reviewer-sa@${DEPLOY_PROJECT}.iam.gserviceaccount.com"
-  status_wait "Revoking IAM Roles..."
+  status_wait "Revoking Project IAM Roles..."
 
-  # Attempt to remove bindings (best effort) — must match what setup grants.
-  ROLES=(
-    roles/viewer
-    roles/iam.securityReviewer
-    roles/cloudasset.viewer
-    roles/orgpolicy.policyViewer
-    roles/recommender.viewer
-    roles/billing.viewer
-  )
-  for role in "${ROLES[@]}"; do
+  _REVOKE_FAILED=()
+  for role in "${PROJECT_ROLES[@]}"; do
     gcloud projects remove-iam-policy-binding "${DEPLOY_PROJECT}" \
       --member="serviceAccount:${SA_EMAIL}" \
       --role="${role}" \
-      --condition=None --quiet >/dev/null 2>&1 || true
+      --condition=None --quiet >/dev/null 2>&1 || _REVOKE_FAILED+=("${role}")
   done
-  status_done "IAM Roles Revoked"
+  if [[ ${#_REVOKE_FAILED[@]} -eq 0 ]]; then
+    status_done "Project IAM Roles Revoked (${#PROJECT_ROLES[@]})"
+  else
+    echo ""
+    warn "Could not revoke ${#_REVOKE_FAILED[@]} of ${#PROJECT_ROLES[@]} project-level bindings"
+    warn "(binding already gone, or you lack IAM admin on ${DEPLOY_PROJECT}):"
+    for role in "${_REVOKE_FAILED[@]}"; do
+      echo -e "     - ${role}"
+    done
+  fi
+
+  # Org-scope bindings widen the blast radius beyond this project, so they
+  # get their own consent — mirroring how they were granted.
+  if [[ -n "$ORG_ID" && ${#ORG_ROLES[@]} -gt 0 ]]; then
+    echo ""
+    warn "This deployment granted ${SA_EMAIL}"
+    warn "the following roles at ORGANIZATION scope (org ${ORG_ID}):"
+    for role in "${ORG_ROLES[@]}"; do
+      echo -e "     - ${role}"
+    done
+    if confirm "Revoke these organization-level bindings on org ${ORG_ID}?"; then
+      _ORG_REVOKE_FAILED=()
+      for role in "${ORG_ROLES[@]}"; do
+        gcloud organizations remove-iam-policy-binding "${ORG_ID}" \
+          --member="serviceAccount:${SA_EMAIL}" \
+          --role="${role}" \
+          --condition=None --quiet >/dev/null 2>&1 || _ORG_REVOKE_FAILED+=("${role}")
+      done
+      if [[ ${#_ORG_REVOKE_FAILED[@]} -eq 0 ]]; then
+        status_done "Organization-level bindings revoked (${#ORG_ROLES[@]})"
+      else
+        status_fail "Could not revoke ${#_ORG_REVOKE_FAILED[@]} org-level binding(s) — remove manually:"
+        for role in "${_ORG_REVOKE_FAILED[@]}"; do
+          echo -e "       ${P_DIM}gcloud organizations remove-iam-policy-binding ${ORG_ID} --member=serviceAccount:${SA_EMAIL} --role=${role} --condition=None${NC}"
+        done
+      fi
+    else
+      warn "Leaving organization-level bindings in place. Remove later with:"
+      for role in "${ORG_ROLES[@]}"; do
+        echo -e "       ${P_DIM}gcloud organizations remove-iam-policy-binding ${ORG_ID} --member=serviceAccount:${SA_EMAIL} --role=${role} --condition=None${NC}"
+      done
+    fi
+  elif [[ "$HAVE_STATE" != true ]]; then
+    echo ""
+    warn "No deployment record — cannot tell whether org-level roles were granted."
+    warn "Older versions of this script granted viewer roles at the ORG level when"
+    warn "the project sat under an organization. Audit with:"
+    echo -e "       ${P_DIM}gcloud organizations get-iam-policy <ORG_ID> --flatten='bindings[].members' --filter='bindings.members:${SA_EMAIL}' --format='value(bindings.role)'${NC}"
+  fi
 
   status_wait "Deleting Service Account..."
   if gcloud iam service-accounts delete "${SA_EMAIL}" --project="${DEPLOY_PROJECT}" --quiet >/dev/null 2>&1; then
@@ -1088,6 +1241,8 @@ remove_deployment() {
       fi
       rm -f "$ORG_POLICY_STAMP" "$ORG_POLICY_SNAPSHOT"
   fi
+
+  rm -f "$DEPLOY_STATE_FILE"
 
   echo ""
   echo -e "${P_PRIMARY}>> REMOVAL COMPLETE. SYSTEM CLEAN.${NC}"
@@ -1276,7 +1431,10 @@ print_usage() {
   cat <<USAGE
 Usage:
   ./setup.sh                          Deploy the tool (interactive).
-  ./setup.sh --remove                 Tear down the deploy + SA + bucket + AR.
+  ./setup.sh --remove [--region R]    Tear down the deploy + SA + bucket + AR
+                                      + IAM grants. Uses the region/grants
+                                      recorded at deploy time; --region
+                                      overrides the recorded region.
   ./setup.sh --grant-on PROJECT_ID    Grant the deploy SA viewer roles on a
                                       different scan-target project. Run once
                                       per project the customer wants scanned.
@@ -1304,6 +1462,24 @@ main() {
       exit 0
       ;;
     --remove)
+      shift
+      while [[ $# -gt 0 ]]; do
+        case "$1" in
+          --region)
+            if [[ -z "${2:-}" ]]; then
+              error "--region requires a value"
+              exit 2
+            fi
+            REGION="$2"
+            shift 2
+            ;;
+          *)
+            error "Unknown option for --remove: $1"
+            print_usage
+            exit 2
+            ;;
+        esac
+      done
       print_banner
       check_prerequisites
       remove_deployment

@@ -4,7 +4,15 @@ Ensures the new check modules import and register correctly, IDs are unique,
 and every new ServiceCategory has at least one check.
 """
 
-from backend.checks.registry import discover_checks, reset_registry
+import pytest
+
+from backend.checks.base import BaseCheck
+from backend.checks.registry import (
+    DuplicateCheckIdError,
+    _register_check_class,
+    discover_checks,
+    reset_registry,
+)
 from backend.core.models import ServiceCategory
 
 
@@ -32,10 +40,38 @@ def test_registry_discovers_new_categories():
         assert cat in seen, f"No checks registered for {cat}"
 
 
-def test_check_ids_are_unique():
-    checks = discover_checks()
-    ids = [c.id for c in checks.values()]
-    assert len(ids) == len(set(ids)), f"Duplicate check IDs: {sorted([x for x in ids if ids.count(x) > 1])}"
+def test_duplicate_check_id_raises():
+    """Two different classes claiming one ID must abort discovery, not
+    silently shadow each other."""
+
+    class FirstDummy(BaseCheck):
+        id = "TEST-DUP-001"
+        title = "first"
+        service = "Test"
+
+        async def execute(self, project_id, gcloud_runner):
+            return []
+
+    class SecondDummy(BaseCheck):
+        id = "TEST-DUP-001"
+        title = "second"
+        service = "Test"
+
+        async def execute(self, project_id, gcloud_runner):
+            return []
+
+    try:
+        _register_check_class(FirstDummy)
+        # Same class again is fine (modules re-export check classes).
+        _register_check_class(FirstDummy)
+        with pytest.raises(DuplicateCheckIdError) as exc_info:
+            _register_check_class(SecondDummy)
+        message = str(exc_info.value)
+        assert "TEST-DUP-001" in message
+        assert "FirstDummy" in message
+        assert "SecondDummy" in message
+    finally:
+        reset_registry()
 
 
 def test_total_check_count_increased():
