@@ -6,6 +6,7 @@ Checks: IAM-001, IAM-006, IAM-008, IAM-009, IAM-010, IAM-012
 import logging
 from typing import Any
 
+from backend.checks._identity import is_google_managed_agent
 from backend.checks.base import BaseCheck
 from backend.core.models import Category, CheckResult, Severity, ServiceCategory
 
@@ -53,10 +54,7 @@ class PrimitiveRolesInUse(BaseCheck):
                     continue
                 for member in binding.get("members", []):
                     # Skip Google-managed service agents
-                    if "gserviceaccount.com" in member and (
-                        "@cloudservices" in member or
-                        "service-" in member.split("@")[0]
-                    ):
+                    if is_google_managed_agent(member):
                         continue
                     findings.append(CheckResult(
                         check_id=self.id, title=self.title, description=self.description,
@@ -337,7 +335,7 @@ class OverPermissionedServiceAccounts(BaseCheck):
                         continue
                     sa_email = member.replace("serviceAccount:", "")
                     # Skip Google-managed service agents
-                    if "@cloudservices" in sa_email or "service-" in sa_email.split("@")[0]:
+                    if is_google_managed_agent(sa_email):
                         continue
                     findings.append(CheckResult(
                         check_id=self.id, title=self.title, description=self.description,

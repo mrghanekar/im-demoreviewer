@@ -259,6 +259,62 @@ class AccessTransparencyNotEnabled(BaseCheck):
 # ---------------------------------------------------------------------------
 
 
+async def _kms_keyrings(project_id: str, gcloud_runner: Any) -> list[dict]:
+    """List every key ring in a project across all KMS locations.
+
+    ``gcloud kms keyrings list`` requires a concrete ``--location``; the ``-``
+    wildcard accepted by some gcloud surfaces is rejected by the KMS API, so
+    the locations have to be enumerated first. Both the locations call and the
+    per-location listings go through the runner's command cache, so SEC-011 and
+    SEC-012 pay for this once per project.
+    """
+    try:
+        locations = await gcloud_runner.run(
+            f"gcloud kms locations list --project={project_id} --format=json"
+        )
+    except Exception:
+        return []
+
+    keyrings: list[dict] = []
+    for loc in locations if isinstance(locations, list) else []:
+        if not isinstance(loc, dict):
+            continue
+        loc_id = loc.get("locationId") or loc.get("name", "").rsplit("/", 1)[-1]
+        if not loc_id:
+            continue
+        try:
+            rings = await gcloud_runner.run(
+                f"gcloud kms keyrings list --location={loc_id} "
+                f"--project={project_id} --format=json"
+            )
+        except Exception:
+            continue
+        if isinstance(rings, list):
+            keyrings.extend(r for r in rings if isinstance(r, dict))
+    return keyrings
+
+
+async def _kms_keys(project_id: str, gcloud_runner: Any) -> list[dict]:
+    """Every crypto key in a project, resolved through :func:`_kms_keyrings`."""
+    keys: list[dict] = []
+    for kr in await _kms_keyrings(project_id, gcloud_runner):
+        kr_name = kr.get("name", "")
+        parts = kr_name.split("/")
+        if len(parts) < 6:
+            continue
+        location, ring_id = parts[3], parts[5]
+        try:
+            ring_keys = await gcloud_runner.run(
+                f"gcloud kms keys list --keyring={ring_id} --location={location} "
+                f"--project={project_id} --format=json"
+            )
+        except Exception:
+            continue
+        if isinstance(ring_keys, list):
+            keys.extend(k for k in ring_keys if isinstance(k, dict))
+    return keys
+
+
 class KMSKeyDestructionProtection(BaseCheck):
     """SEC-011: KMS keys without a long destruction-scheduled-duration."""
     id = "SEC-011"
@@ -272,35 +328,17 @@ class KMSKeyDestructionProtection(BaseCheck):
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
-        try:
-            keyrings = await gcloud_runner.run(
-                f"gcloud kms keyrings list --location=- --project={project_id} --format=json"
-            )
-        except Exception:
-            return findings
-        for kr in (keyrings if isinstance(keyrings, list) else []):
-            kr_name = kr.get("name", "")
-            parts = kr_name.split("/")
-            if len(parts) < 6:
-                continue
-            location, ring_id = parts[3], parts[5]
-            try:
-                keys = await gcloud_runner.run(
-                    f"gcloud kms keys list --keyring={ring_id} --location={location} --project={project_id} --format=json"
-                )
-            except Exception:
-                continue
-            for k in (keys if isinstance(keys, list) else []):
-                dur = k.get("destroyScheduledDuration", "")
-                if not dur or dur == "86400s":
-                    findings.append(CheckResult(
-                        check_id=self.id, title=self.title, description=self.description,
-                        severity=self.severity, category=self.category, service=self.service,
-                        resource_name=k.get("name", ""), project_id=project_id,
-                        current_state=f"destroyScheduledDuration={dur or 'default 24h'}",
-                        recommended_state="Set a longer destruction delay (e.g. 2592000s = 30 days)",
-                        fix_command="", references=self.references,
-                    ))
+        for k in await _kms_keys(project_id, gcloud_runner):
+            dur = k.get("destroyScheduledDuration", "")
+            if not dur or dur == "86400s":
+                findings.append(CheckResult(
+                    check_id=self.id, title=self.title, description=self.description,
+                    severity=self.severity, category=self.category, service=self.service,
+                    resource_name=k.get("name", ""), project_id=project_id,
+                    current_state=f"destroyScheduledDuration={dur or 'default 24h'}",
+                    recommended_state="Set a longer destruction delay (e.g. 2592000s = 30 days)",
+                    fix_command="", references=self.references,
+                ))
         return findings
 
 
@@ -317,43 +355,25 @@ class KMSRotationPeriodLong(BaseCheck):
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
-        try:
-            keyrings = await gcloud_runner.run(
-                f"gcloud kms keyrings list --location=- --project={project_id} --format=json"
-            )
-        except Exception:
-            return findings
-        for kr in (keyrings if isinstance(keyrings, list) else []):
-            kr_name = kr.get("name", "")
-            parts = kr_name.split("/")
-            if len(parts) < 6:
+        for k in await _kms_keys(project_id, gcloud_runner):
+            if k.get("purpose") != "ENCRYPT_DECRYPT":
                 continue
-            location, ring_id = parts[3], parts[5]
-            try:
-                keys = await gcloud_runner.run(
-                    f"gcloud kms keys list --keyring={ring_id} --location={location} --project={project_id} --format=json"
-                )
-            except Exception:
-                continue
-            for k in (keys if isinstance(keys, list) else []):
-                if k.get("purpose") != "ENCRYPT_DECRYPT":
-                    continue
-                period = k.get("rotationPeriod", "")
-                period_seconds = 0
-                if isinstance(period, str) and period.endswith("s"):
-                    try:
-                        period_seconds = int(period[:-1])
-                    except ValueError:
-                        period_seconds = 0
-                if not period_seconds or period_seconds > 31_536_000:
-                    findings.append(CheckResult(
-                        check_id=self.id, title=self.title, description=self.description,
-                        severity=self.severity, category=self.category, service=self.service,
-                        resource_name=k.get("name", ""), project_id=project_id,
-                        current_state=f"rotationPeriod={period or 'unset'}",
-                        recommended_state="Set rotation period <= 31536000s (1 year)",
-                        fix_command="", references=self.references,
-                    ))
+            period = k.get("rotationPeriod", "")
+            period_seconds = 0
+            if isinstance(period, str) and period.endswith("s"):
+                try:
+                    period_seconds = int(period[:-1])
+                except ValueError:
+                    period_seconds = 0
+            if not period_seconds or period_seconds > 31_536_000:
+                findings.append(CheckResult(
+                    check_id=self.id, title=self.title, description=self.description,
+                    severity=self.severity, category=self.category, service=self.service,
+                    resource_name=k.get("name", ""), project_id=project_id,
+                    current_state=f"rotationPeriod={period or 'unset'}",
+                    recommended_state="Set rotation period <= 31536000s (1 year)",
+                    fix_command="", references=self.references,
+                ))
         return findings
 
 

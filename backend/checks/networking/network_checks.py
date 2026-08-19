@@ -12,6 +12,52 @@ from backend.core.models import Category, CheckResult, Severity, ServiceCategory
 logger = logging.getLogger(__name__)
 
 
+def port_list_covers(ports: list[str], target: int) -> bool:
+    """Whether a firewall rule's port list exposes ``target``.
+
+    gcloud returns entries as single ports ("22") or ranges ("20-1000"), and an
+    empty list means every port. Substring matching missed ranges entirely, so
+    a rule allowing tcp:1-65535 from 0.0.0.0/0 looked compliant.
+    """
+    if not ports:
+        return True
+    for entry in ports:
+        spec = str(entry).strip()
+        if not spec:
+            continue
+        if "-" in spec:
+            low, _, high = spec.partition("-")
+            try:
+                if int(low) <= target <= int(high):
+                    return True
+            except ValueError:
+                logger.debug("Unparseable firewall port range: %r", spec)
+            continue
+        try:
+            if int(spec) == target:
+                return True
+        except ValueError:
+            logger.debug("Unparseable firewall port: %r", spec)
+    return False
+
+
+def port_list_is_unrestricted(ports: list[str]) -> bool:
+    """Whether the port list effectively covers the entire port space."""
+    if not ports:
+        return True
+    for entry in ports:
+        spec = str(entry).strip()
+        if "-" not in spec:
+            continue
+        low, _, high = spec.partition("-")
+        try:
+            if int(low) <= 1 and int(high) >= 65535:
+                return True
+        except ValueError:
+            continue
+    return False
+
+
 class OpenFirewallSSH(BaseCheck):
     id = "NET-001"
     title = "Firewall rule allows SSH (22) from 0.0.0.0/0"
@@ -40,7 +86,7 @@ class OpenFirewallSSH(BaseCheck):
                 for allowed in r.get("allowed", []):
                     ports = allowed.get("ports", [])
                     proto = allowed.get("IPProtocol", "")
-                    if proto == "tcp" and ("22" in ports or not ports):
+                    if proto in ("tcp", "all") and port_list_covers(ports, 22):
                         findings.append(CheckResult(
                             check_id=self.id, title=self.title, description=self.description,
                             severity=self.severity, category=self.category, service=self.service,
@@ -83,7 +129,7 @@ class OpenFirewallRDP(BaseCheck):
                 for allowed in r.get("allowed", []):
                     ports = allowed.get("ports", [])
                     proto = allowed.get("IPProtocol", "")
-                    if proto == "tcp" and ("3389" in ports or not ports):
+                    if proto in ("tcp", "all") and port_list_covers(ports, 3389):
                         findings.append(CheckResult(
                             check_id=self.id, title=self.title, description=self.description,
                             severity=self.severity, category=self.category, service=self.service,
@@ -125,7 +171,9 @@ class OverlyPermissiveFirewall(BaseCheck):
                 for allowed in r.get("allowed", []):
                     proto = allowed.get("IPProtocol", "")
                     ports = allowed.get("ports", [])
-                    if proto == "all" or (proto == "tcp" and not ports):
+                    if proto == "all" or (
+                        proto in ("tcp", "udp") and port_list_is_unrestricted(ports)
+                    ):
                         findings.append(CheckResult(
                             check_id=self.id, title=self.title, description=self.description,
                             severity=self.severity, category=self.category, service=self.service,
@@ -194,7 +242,14 @@ class FlowLogsDisabled(BaseCheck):
             for s in subnets:
                 name = s.get("name", "")
                 region = s.get("region", "").split("/")[-1]
-                if not s.get("enableFlowLogs", False) and not s.get("logConfig"):
+                # A subnet that had flow logs toggled off still carries a
+                # logConfig block ({"enable": false}), which is truthy — so
+                # testing the dict's presence marked it compliant.
+                log_config = s.get("logConfig") or {}
+                flow_logs_on = bool(s.get("enableFlowLogs", False)) or bool(
+                    log_config.get("enable", False)
+                )
+                if not flow_logs_on:
                     findings.append(CheckResult(
                         check_id=self.id, title=self.title, description=self.description,
                         severity=self.severity, category=self.category, service=self.service,

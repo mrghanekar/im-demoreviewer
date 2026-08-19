@@ -12,6 +12,54 @@ from backend.core.models import Category, CheckResult, Severity, ServiceCategory
 logger = logging.getLogger(__name__)
 
 
+async def _zones_in_use(project_id: str, gcloud_runner: Any) -> list[str]:
+    """Zones that actually contain instances in this project.
+
+    `gcloud recommender recommendations list` requires a concrete location —
+    passing `--location=-` errors out, and because the failure was swallowed
+    the recommender-backed checks never produced a finding. Querying only the
+    zones in use keeps the fan-out proportional to the project.
+    """
+    try:
+        instances = await gcloud_runner.run(
+            f"gcloud compute instances list --project={project_id} "
+            f"--format='value(zone)'",
+            parse_json=False,
+        )
+    except Exception as e:
+        logger.debug("Could not enumerate zones for %s: %s", project_id, e)
+        return []
+
+    if isinstance(instances, str):
+        raw = instances.split("\n")
+    elif isinstance(instances, list):
+        raw = [str(i) for i in instances]
+    else:
+        return []
+
+    return sorted({z.strip().split("/")[-1] for z in raw if z and z.strip()})
+
+
+async def _recommendations(
+    project_id: str, gcloud_runner: Any, recommender: str, check_id: str
+) -> list[dict]:
+    """Collect recommendations across every zone the project uses."""
+    results: list[dict] = []
+    for zone in await _zones_in_use(project_id, gcloud_runner):
+        try:
+            recs = await gcloud_runner.run(
+                f"gcloud recommender recommendations list "
+                f"--recommender={recommender} "
+                f"--project={project_id} --location={zone} --format=json"
+            )
+        except Exception as e:
+            logger.debug("%s: no recommendations for zone %s: %s", check_id, zone, e)
+            continue
+        if isinstance(recs, list):
+            results.extend(r for r in recs if isinstance(r, dict))
+    return results
+
+
 class NoBudgetAlerts(BaseCheck):
     id = "BIL-001"
     title = "No billing budget alerts configured"
@@ -156,7 +204,14 @@ class OldSnapshots(BaseCheck):
                     created_dt = datetime.fromisoformat(created.replace("Z", "+00:00"))
                     if created_dt < threshold:
                         age_days = (datetime.now(timezone.utc) - created_dt).days
-                        size_gb = s.get("storageBytes", 0) / (1024**3)
+                        # The Compute API JSON-encodes int64 fields as strings
+                        # ("storageBytes": "10737418240"), so dividing directly
+                        # raised TypeError into the enclosing handler and every
+                        # old snapshot was silently skipped.
+                        try:
+                            size_gb = int(s.get("storageBytes") or 0) / (1024**3)
+                        except (TypeError, ValueError):
+                            size_gb = 0.0
                         findings.append(CheckResult(
                             check_id=self.id, title=self.title, description=self.description,
                             severity=self.severity, category=self.category, service=self.service,
@@ -217,11 +272,11 @@ class IdleVMs(BaseCheck):
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
         try:
-            # Use recommender API via gcloud
-            recs = await gcloud_runner.run(
-                f"gcloud recommender recommendations list "
-                f"--recommender=google.compute.instance.IdleResourceRecommender "
-                f"--project={project_id} --location=- --format=json"
+            recs = await _recommendations(
+                project_id,
+                gcloud_runner,
+                "google.compute.instance.IdleResourceRecommender",
+                self.id,
             )
             if isinstance(recs, list):
                 for rec in recs:
@@ -254,10 +309,11 @@ class OversizedVMs(BaseCheck):
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
         try:
-            recs = await gcloud_runner.run(
-                f"gcloud recommender recommendations list "
-                f"--recommender=google.compute.instance.MachineTypeRecommender "
-                f"--project={project_id} --location=- --format=json"
+            recs = await _recommendations(
+                project_id,
+                gcloud_runner,
+                "google.compute.instance.MachineTypeRecommender",
+                self.id,
             )
             if isinstance(recs, list):
                 for rec in recs:
