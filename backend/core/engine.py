@@ -30,6 +30,42 @@ from backend.core.models import (
 logger = logging.getLogger(__name__)
 
 
+class _RunnerProbe:
+    """Per-check wrapper around GcloudRunner that records swallowed failures.
+
+    Nearly every check body ends in ``except Exception: logger.error(...);
+    return findings``. The engine then sees an empty list and records PASSED, so
+    a 403 on ``projects get-iam-policy`` is reported to the operator as "IAM is
+    clean" — the worst possible failure mode for an audit tool.
+
+    Rewriting the error handling in ~200 check modules would be a large and
+    risky change, and any new check would reintroduce the bug. Instead observe
+    the one boundary they all go through: whatever the check does with the
+    exception afterwards, the engine still knows the call failed.
+    """
+
+    __slots__ = ("_inner", "errors", "succeeded")
+
+    def __init__(self, inner: Any):
+        self._inner = inner
+        self.errors: list[BaseException] = []
+        self.succeeded = 0
+
+    async def run(self, *args: Any, **kwargs: Any) -> Any:
+        try:
+            result = await self._inner.run(*args, **kwargs)
+        except asyncio.CancelledError:
+            raise
+        except BaseException as e:
+            self.errors.append(e)
+            raise
+        self.succeeded += 1
+        return result
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._inner, name)
+
+
 class CheckEngine:
     """Executes checks against GCP projects with controlled concurrency.
     
@@ -174,10 +210,11 @@ class CheckEngine:
             try:
                 # Enforce a hard timeout per check to prevent stalls
                 check_timeout = float(settings.check_timeout_seconds)
+                probe = _RunnerProbe(self.gcloud_runner)
                 results: list[CheckResult] = await asyncio.wait_for(
                     check.execute(
                         project_id=project_id,
-                        gcloud_runner=self.gcloud_runner,
+                        gcloud_runner=probe,
                     ),
                     timeout=check_timeout,
                 )
@@ -209,16 +246,18 @@ class CheckEngine:
                 execution.status = (
                     CheckStatus.FAILED if findings else CheckStatus.PASSED
                 )
+                self._grade_swallowed_errors(check, execution, probe, findings)
 
                 logger.info(
-                    "Check %s completed in %dms — %d finding(s)",
-                    check.id, elapsed_ms, len(findings),
+                    "Check %s completed in %dms — %d finding(s) [%s]",
+                    check.id, elapsed_ms, len(findings), execution.status,
                 )
 
                 self._emit_event("check_completed", {
                     "check_id": check.id,
                     "status": execution.status,
                     "findings_count": len(findings),
+                    "error": execution.error_message,
                     "duration_ms": elapsed_ms,
                 })
 
@@ -282,6 +321,69 @@ class CheckEngine:
                     raise
 
                 return []
+
+    def _grade_swallowed_errors(
+        self,
+        check: BaseCheck,
+        execution: CheckExecution,
+        probe: "_RunnerProbe",
+        findings: list[Finding],
+    ) -> None:
+        """Downgrade a PASSED verdict the check isn't entitled to.
+
+        A check that caught a 403 and returned an empty list has not verified
+        anything. Report SKIPPED (the service isn't on) or ERRORED (we couldn't
+        read it) rather than letting it count as a clean control.
+
+        Only auth-shaped and API-disabled failures escalate. Checks that probe
+        speculatively — SEC-011 walking every KMS location, for instance — hit
+        NOT_FOUND routinely, and that is not evidence of anything.
+        """
+        if not probe.errors:
+            return
+
+        service_disabled = [
+            e for e in probe.errors if isinstance(e, ServiceNotEnabledError)
+        ]
+        denied = [
+            e for e in probe.errors
+            if not isinstance(e, ServiceNotEnabledError)
+            and self._looks_like_permission_denied(e)
+        ]
+
+        if denied:
+            # Feeds the 403-storm guard, which was otherwise unreachable for
+            # every check that swallowed its own errors.
+            self._permission_denied_count += len(denied)
+            self._maybe_trip_permission_storm()
+
+        if findings:
+            # Partial result: the findings are real, but the check didn't see
+            # everything. Say so instead of silently under-reporting.
+            if denied or service_disabled:
+                execution.error_message = (
+                    f"Partial result: {len(denied) + len(service_disabled)} of "
+                    f"{len(probe.errors) + probe.succeeded} gcloud calls failed "
+                    f"({denied[0] if denied else service_disabled[0]})"
+                )
+            return
+
+        if denied:
+            execution.status = CheckStatus.ERRORED
+            execution.error_message = (
+                f"Permission denied — this is not a pass: {denied[0]}"
+            )
+            logger.warning(
+                "Check %s reported no findings but hit %d permission error(s); "
+                "recording ERRORED",
+                check.id, len(denied),
+            )
+        elif service_disabled and probe.succeeded == 0:
+            execution.status = CheckStatus.SKIPPED
+            execution.error_message = (
+                "Skipped: service not active in project "
+                f"(API disabled: {service_disabled[0]})"
+            )
 
     async def _skip_for_disabled_apis(
         self,
