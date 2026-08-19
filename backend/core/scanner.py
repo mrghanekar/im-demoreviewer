@@ -129,16 +129,28 @@ class ScanStore:
         )
 
     def save(self, scan: Scan) -> None:
-        """Save or update a scan."""
+        """Save or update a scan (in memory and on the durable tiers)."""
+        self.register(scan)
+        self.persist(scan)
+
+    def register(self, scan: Scan) -> None:
+        """Make ``scan`` the canonical in-memory record. Cheap, never blocks."""
         self._scans[scan.id] = scan
         # A save invalidates any prior miss for this ID.
         self._miss_cache.pop(scan.id, None)
 
+    def persist(self, scan: Scan) -> None:
+        """Write to disk and GCS. Blocking — call from a thread on the hot path.
+
+        Split from ``register`` so a scan in progress can be persisted from a
+        worker thread while the live object stays canonical in memory: passing
+        a snapshot to ``save`` would swap the mutating object out from under
+        the running scan.
+        """
         if self._data_dir:
             self._save_to_disk(scan)
 
         if self._gcs_bucket:
-            # We save to GCS in background/thread ideally, but here synchronous for safety
             self._save_to_gcs(scan)
 
     def delete(self, scan_id: str) -> bool:
@@ -262,6 +274,26 @@ class Scanner:
         self.store = store or ScanStore()
         self.gcloud_runner = gcloud_runner or GcloudRunner()
         self.on_event = on_event
+        # Task handle per in-flight scan, so cancel_scan can actually cancel.
+        self._running: dict[str, asyncio.Task] = {}
+        # One lock per scan so two projects finishing together don't both
+        # upload the full scan JSON and lose each other's findings.
+        self._save_locks: dict[str, asyncio.Lock] = {}
+
+    async def _save_async(self, scan: Scan) -> None:
+        """Persist a scan without stalling the event loop.
+
+        ScanStore.save uploads the whole scan JSON with the synchronous GCS
+        client. Mid-org-scan that is megabytes, and while it runs no heartbeat,
+        WebSocket frame or sibling scan makes progress. Snapshot before handing
+        off: findings keep streaming into the live object, and serialising it
+        from a thread would race with those appends.
+        """
+        self.store.register(scan)
+        lock = self._save_locks.setdefault(scan.id, asyncio.Lock())
+        async with lock:
+            snapshot = scan.model_copy(deep=True)
+            await asyncio.to_thread(self.store.persist, snapshot)
 
     def _emit(
         self,
@@ -322,6 +354,22 @@ class Scanner:
             logger.error("Scan %s not found in store", scan_id)
             return None
 
+        # Publish the task handle so cancel_scan has something to cancel.
+        task = asyncio.current_task()
+        if task is not None:
+            self._running[scan_id] = task
+        try:
+            return await self._run_scan_body(scan, scan_id, on_event)
+        finally:
+            self._running.pop(scan_id, None)
+            self._save_locks.pop(scan_id, None)
+
+    async def _run_scan_body(
+        self,
+        scan: Scan,
+        scan_id: str,
+        on_event: Callable[[dict[str, Any]], None] | None,
+    ) -> Scan | None:
         # Per-call event callback; falls back to the Scanner's default
         scan_on_event = on_event or self.on_event
 
@@ -338,7 +386,7 @@ class Scanner:
             scan.gcloud_version = await self.gcloud_runner.get_gcloud_version()
         except Exception as e:
             logger.debug("Couldn't read gcloud version: %s", e)
-        self.store.save(scan)
+        await self._save_async(scan)
 
         self._emit("scan_started", scan_id, {
             "scope": scan.scope,
@@ -358,7 +406,7 @@ class Scanner:
                 projects = [scan.target_id]
 
             scan.projects_scanned = projects
-            self.store.save(scan)
+            await self._save_async(scan)
 
             logger.info("Scanning %d project(s) for scan %s", len(projects), scan_id)
 
@@ -398,10 +446,6 @@ class Scanner:
                     _id_counter[0] += 1
                     return _id_counter[0]
 
-            # Lock for intermediate saves so two completing projects don't write
-            # GCS simultaneously and last-writer-wins lose findings.
-            _save_lock = threading.Lock()
-
             async def _run_project(project_id: str) -> tuple[list[Finding], list[Any]]:
                 async with project_sem:
                     self._emit(
@@ -424,10 +468,9 @@ class Scanner:
                     )
                     # Best-effort intermediate save so a Cloud Run instance
                     # rotation mid-org-scan doesn't lose completed projects.
-                    # Serialized by _save_lock to avoid two writers racing on GCS.
+                    # _save_async serializes writers per scan.
                     try:
-                        with _save_lock:
-                            self.store.save(scan)
+                        await self._save_async(scan)
                     except Exception as e:
                         logger.warning(
                             "Intermediate save after project %s failed: %s",
@@ -461,7 +504,12 @@ class Scanner:
             # Finalize scan with authoritative data
             scan.findings = all_findings
             scan.check_executions = all_executions
-            scan.status = ScanStatus.COMPLETED
+            # A cancel that landed while the last projects drained already wrote
+            # CANCELLED; overwriting it with COMPLETED told the user the scan
+            # finished normally.
+            cancelled = scan.status == ScanStatus.CANCELLED
+            if not cancelled:
+                scan.status = ScanStatus.COMPLETED
             scan.completed_at = datetime.now(timezone.utc)
 
             duration = (
@@ -474,19 +522,38 @@ class Scanner:
                 all_findings, all_executions, duration_seconds=duration
             )
 
-            self.store.save(scan)
+            await self._save_async(scan)
 
-            self._emit("scan_completed", scan_id, scan.summary.model_dump(mode="json"), on_event=scan_on_event)
+            if not cancelled:
+                self._emit(
+                    "scan_completed", scan_id,
+                    scan.summary.model_dump(mode="json"),
+                    on_event=scan_on_event,
+                )
 
             logger.info(
-                "Scan %s completed: %d findings in %d projects",
+                "Scan %s %s: %d findings in %d projects",
                 scan_id,
+                "cancelled" if cancelled else "completed",
                 scan.summary.total_findings,
                 len(projects)
             )
 
             self._cleanup_bus_state(scan_id)
             return scan
+
+        except asyncio.CancelledError:
+            # cancel_scan() cancelled the task. Record the partial result rather
+            # than leaving the scan stuck in RUNNING forever.
+            scan.status = ScanStatus.CANCELLED
+            scan.completed_at = datetime.now(timezone.utc)
+            try:
+                self.store.save(scan)
+            except Exception as e:
+                logger.warning("Save after cancelling scan %s failed: %s", scan_id, e)
+            logger.info("Scan %s cancelled mid-flight", scan_id)
+            self._cleanup_bus_state(scan_id)
+            raise
 
         except Exception as e:
             scan.status = ScanStatus.FAILED
@@ -516,10 +583,15 @@ class Scanner:
 
     async def cancel_scan(self, scan_id: str) -> Scan | None:
         """Cancel a running scan.
-        
+
+        Cancels the task as well as marking the record. Flipping the status
+        alone left every check running: the scan kept spawning gcloud
+        subprocesses and burning API quota, and on completion overwrote
+        CANCELLED with COMPLETED.
+
         Args:
             scan_id: ID of the scan to cancel.
-            
+
         Returns:
             Updated scan or None if not found.
         """
@@ -532,7 +604,18 @@ class Scanner:
             scan.completed_at = datetime.now(timezone.utc)
             self.store.save(scan)
             self._emit("scan_cancelled", scan_id)
-            logger.info("Scan %s cancelled", scan_id)
+
+            task = self._running.get(scan_id)
+            if task is not None and not task.done():
+                task.cancel()
+                logger.info("Scan %s cancelled (task cancelled)", scan_id)
+            else:
+                # No handle: the scan is running in another worker, or was
+                # started outside run_scan. The status write is all we can do.
+                logger.info(
+                    "Scan %s marked cancelled; no local task to cancel", scan_id
+                )
+
             self._cleanup_bus_state(scan_id)
 
         return scan

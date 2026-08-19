@@ -88,14 +88,17 @@ class _Saves(MagicMock):
 
 @pytest.mark.asyncio
 async def test_intermediate_save_fires_per_project(monkeypatch, scan_store, mock_gcloud_runner):
+    # Count durable writes, not save(): the scanner persists off the event loop
+    # via register() + persist(), so persist is where "did this project's work
+    # survive an instance rotation?" is actually decided.
     save_calls = []
-    original_save = scan_store.save
+    original_persist = scan_store.persist
 
-    def counting_save(scan):
+    def counting_persist(scan):
         save_calls.append(scan.id)
-        original_save(scan)
+        original_persist(scan)
 
-    scan_store.save = counting_save  # type: ignore[method-assign]
+    scan_store.persist = counting_persist  # type: ignore[method-assign]
 
     scanner = Scanner(store=scan_store, gcloud_runner=mock_gcloud_runner)
     monkeypatch.setattr(

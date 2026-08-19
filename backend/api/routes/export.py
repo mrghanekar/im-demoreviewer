@@ -3,6 +3,7 @@
 Handles exporting scan results to JSON / CSV / HTML / PDF, and GCS upload.
 """
 
+import asyncio
 import csv
 import io
 import json
@@ -98,7 +99,7 @@ async def export_html(
     if not scan:
         raise HTTPException(status_code=404, detail=f"Scan {scan_id} not found")
 
-    html = generate_html_report(scan)
+    html = await asyncio.to_thread(generate_html_report, scan)
 
     # Check export size limit
     if len(html.encode("utf-8")) > MAX_EXPORT_SIZE_BYTES:
@@ -178,7 +179,10 @@ async def export_pdf(
         raise HTTPException(status_code=404, detail=f"Scan {scan_id} not found")
 
     try:
-        pdf_bytes = generate_pdf_report(scan)
+        # WeasyPrint renders synchronously and can take seconds on a large
+        # scan. Inline on the event loop it stalls every heartbeat, WebSocket
+        # frame and in-flight scan in the process.
+        pdf_bytes = await asyncio.to_thread(generate_pdf_report, scan)
     except (ImportError, OSError) as e:
         logger.error("PDF generation failed: %s", e)
         raise HTTPException(
@@ -202,6 +206,65 @@ async def export_pdf(
             "Content-Disposition": f'attachment; filename="{filename}"',
         },
     )
+
+
+def _perform_gcs_export(bucket: str, scan_id: str, scan) -> dict:
+    """Render the reports and upload them. Blocking — run in a thread."""
+    from google.cloud import storage
+
+    client = storage.Client()
+    try:
+        gcs_bucket = client.bucket(bucket)
+        prefix = f"democratized-reviewer/scans/{scan_id}"
+        total_uploaded = 0
+
+        # Upload HTML report
+        html_report = generate_html_report(scan)
+        total_uploaded += len(html_report.encode("utf-8"))
+        if total_uploaded > MAX_EXPORT_SIZE_BYTES:
+            raise HTTPException(status_code=413, detail="Export exceeds 5 GB size limit")
+        report_blob = gcs_bucket.blob(f"{prefix}/report.html")
+        report_blob.upload_from_string(html_report, content_type="text/html")
+
+        # Upload PDF report
+        try:
+            pdf_bytes = generate_pdf_report(scan)
+            total_uploaded += len(pdf_bytes)
+            if total_uploaded > MAX_EXPORT_SIZE_BYTES:
+                raise HTTPException(status_code=413, detail="Export exceeds 5 GB size limit")
+            pdf_blob = gcs_bucket.blob(f"{prefix}/report.pdf")
+            pdf_blob.upload_from_string(pdf_bytes, content_type="application/pdf")
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.warning("Failed to generate PDF for GCS export: %s", e)
+
+        # Upload metadata
+        metadata = {
+            "scan_id": scan.id,
+            "scope": scan.scope,
+            "target_id": scan.target_id,
+            "exported_at": datetime.now(timezone.utc).isoformat(),
+            "findings_count": scan.summary.total_findings,
+        }
+        meta_json = json.dumps(metadata, indent=2)
+        meta_blob = gcs_bucket.blob(f"{prefix}/metadata.json")
+        meta_blob.upload_from_string(meta_json, content_type="application/json")
+
+        gcs_uri = f"gs://{bucket}/{prefix}/"
+        logger.info("Exported scan %s to %s", scan_id, gcs_uri)
+
+        return {
+            "status": "exported",
+            "gcs_uri": gcs_uri,
+            "files": [
+                f"{gcs_uri}report.html",
+                f"{gcs_uri}report.pdf",
+                f"{gcs_uri}metadata.json",
+            ],
+        }
+    finally:
+        client.close()
 
 
 @router.post("/{scan_id}/export")
@@ -236,63 +299,13 @@ async def export_to_gcs(
         )
 
     try:
-        from google.cloud import storage
-
-        client = storage.Client()
-        try:
-            gcs_bucket = client.bucket(bucket)
-            prefix = f"democratized-reviewer/scans/{scan_id}"
-            total_uploaded = 0
-
-            # Upload HTML report
-            html_report = generate_html_report(scan)
-            html_size = len(html_report.encode("utf-8"))
-            total_uploaded += html_size
-            if total_uploaded > MAX_EXPORT_SIZE_BYTES:
-                raise HTTPException(status_code=413, detail="Export exceeds 5 GB size limit")
-            report_blob = gcs_bucket.blob(f"{prefix}/report.html")
-            report_blob.upload_from_string(html_report, content_type="text/html")
-
-            # Upload PDF report
-            try:
-                pdf_bytes = generate_pdf_report(scan)
-                total_uploaded += len(pdf_bytes)
-                if total_uploaded > MAX_EXPORT_SIZE_BYTES:
-                    raise HTTPException(status_code=413, detail="Export exceeds 5 GB size limit")
-                pdf_blob = gcs_bucket.blob(f"{prefix}/report.pdf")
-                pdf_blob.upload_from_string(pdf_bytes, content_type="application/pdf")
-            except HTTPException:
-                raise
-            except Exception as e:
-                logger.warning("Failed to generate PDF for GCS export: %s", e)
-
-            # Upload metadata
-            metadata = {
-                "scan_id": scan.id,
-                "scope": scan.scope,
-                "target_id": scan.target_id,
-                "exported_at": datetime.now(timezone.utc).isoformat(),
-                "findings_count": scan.summary.total_findings,
-            }
-            meta_json = json.dumps(metadata, indent=2)
-            meta_blob = gcs_bucket.blob(f"{prefix}/metadata.json")
-            meta_blob.upload_from_string(meta_json, content_type="application/json")
-
-            gcs_uri = f"gs://{bucket}/{prefix}/"
-
-            logger.info("Exported scan %s to %s", scan_id, gcs_uri)
-
-            return {
-                "status": "exported",
-                "gcs_uri": gcs_uri,
-                "files": [
-                    f"{gcs_uri}report.html",
-                    f"{gcs_uri}report.pdf",
-                    f"{gcs_uri}metadata.json",
-                ],
-            }
-        finally:
-            client.close()
+        # Rendering and three synchronous GCS uploads; off-loop or every other
+        # request in the process waits on it. Snapshot first — a scan that is
+        # still running keeps appending findings, and serialising a mutating
+        # model from a worker thread is a data race.
+        return await asyncio.to_thread(
+            _perform_gcs_export, bucket, scan_id, scan.model_copy(deep=True)
+        )
 
     except HTTPException:
         raise
