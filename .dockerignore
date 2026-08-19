@@ -1,0 +1,50 @@
+# Version control
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+.cursor
+*.swp
+
+# Documentation (kept at root, not needed in image)
+README.md
+CONTRIBUTING.md
+
+# Internal: docs, tests, dev tooling, CI configs — all under dev/
+dev/
+
+# Python dev/test
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+.coverage
+htmlcov
+*.egg-info
+.venv
+venv
+backend/requirements.txt
+
+# Node (frontend built in Docker stage 1)
+frontend/node_modules
+frontend/.env
+frontend/dist
+
+
+# Environment secrets
+.env
+.env.local
+.env.production
+
+# Scripts (not needed inside container)
+setup.sh
+uninstall.sh
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+static/

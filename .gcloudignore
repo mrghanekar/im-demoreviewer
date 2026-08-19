@@ -1,0 +1,67 @@
+# Files NOT uploaded to Cloud Build as part of `gcloud builds submit`.
+#
+# Without this file gcloud falls back to .gitignore, which doesn't exclude
+# things like tests/, *.md, or cleanup-demo.sh — all uploaded for nothing
+# because the Dockerfile (and .dockerignore) doesn't COPY them into the
+# image. This file shrinks the per-redeploy upload accordingly.
+#
+# Mirror of .dockerignore plus a few entries that matter pre-build (e.g.
+# this setup.sh tree, the Claude workspace) but NOT the things the
+# Dockerfile actually COPYs (backend/, frontend/, Dockerfile).
+
+# Version control + Claude workspace
+.git/
+.gitignore
+.claude/
+
+# IDE
+.vscode/
+.idea/
+.cursor/
+*.swp
+
+# Documentation (kept at root, not needed for the build)
+README.md
+CONTRIBUTING.md
+
+# Internal: docs, tests, dev tooling, CI configs — all live under dev/
+dev/
+
+# Python dev / test
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/
+.venv/
+venv/
+
+# Node (Dockerfile rebuilds frontend; node_modules + dist would just inflate upload)
+frontend/node_modules/
+frontend/.env
+frontend/dist/
+
+
+# Local env / secrets — never ship to Cloud Build
+.env
+.env.local
+.env.production
+.env.example
+demo-sa-key.json
+key.pem
+cert.pem
+
+# Demo / install scripts (Cloud Build doesn't run them; setup.sh is what
+# CALLS `gcloud builds submit`, not something the build itself reads).
+setup.sh
+uninstall.sh
+
+# Built frontend (Dockerfile stage 1 rebuilds — uploading stale copy wastes bytes)
+static/
+
+# OS files
+.DS_Store
+Thumbs.db

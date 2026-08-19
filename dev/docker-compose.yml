@@ -1,0 +1,44 @@
+# Democratized Reviewer - Local Development
+#
+# Usage (run from repo ROOT, not from dev/):
+#   docker-compose -f dev/docker-compose.yml up
+#   docker-compose -f dev/docker-compose.yml up --build
+#
+# The frontend runs on http://localhost:5173 (Vite dev server)
+# The backend  runs on http://localhost:8080 (FastAPI)
+# The Vite dev server proxies /api/* to the backend
+
+services:
+  backend:
+    build:
+      context: ..
+      dockerfile: dev/Dockerfile.dev
+    ports:
+      - "8080:8080"
+    volumes:
+      - ../backend:/app/backend
+    environment:
+      - DR_DEBUG=true
+      - DR_LOG_LEVEL=DEBUG
+      - DR_PORT=8080
+      - DR_HOST=0.0.0.0
+    env_file:
+      - ../.env
+    restart: unless-stopped
+
+  frontend:
+    image: node:22-slim
+    working_dir: /app
+    ports:
+      - "5173:5173"
+    volumes:
+      - ../frontend:/app
+      - frontend_node_modules:/app/node_modules
+    command: sh -c "npm install && npm run dev -- --host"
+    environment:
+      - VITE_API_BASE=http://backend:8080
+    depends_on:
+      - backend
+
+volumes:
+  frontend_node_modules:

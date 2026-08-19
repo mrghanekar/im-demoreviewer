@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+.env
+
+# Node
+node_modules/
+dist/
+.DS_Store
+
+# Logs
+*.log
+*.err
+
+# Build (frontend is built in CI/Docker, not committed)
+static/
+coverage/
+
+# Misc
+.pytest_cache/
+.coverage
+.claude/
+demo-sa-key.json
+key.pem
+cert.pem
+
+# Source archive
+*.zip

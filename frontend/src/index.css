@@ -1,0 +1,90 @@
+@import "tailwindcss";
+
+/* ============================================
+   Democratized Reviewer — Global Styles
+   Theme: "Terminal meets Dashboard"
+   ============================================ */
+
+@theme {
+  --color-background: #0d1117;
+  --color-surface: #161b22;
+  --color-surface-hover: #1c2129;
+  --color-border: #30363d;
+  --color-border-light: #21262d;
+
+  --color-text-primary: #e6edf3;
+  --color-text-secondary: #8b949e;
+  --color-text-muted: #6e7681;
+
+  --color-accent-green: #00ff41;
+  --color-accent-blue: #58a6ff;
+  --color-accent-red: #f85149;
+  --color-accent-orange: #d29922;
+  --color-accent-purple: #bc8cff;
+
+  --color-severity-critical: #f85149;
+  --color-severity-high: #d29922;
+  --color-severity-medium: #58a6ff;
+  --color-severity-low: #8b949e;
+  --color-severity-info: #6e7681;
+
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* Base */
+html {
+  background-color: var(--color-background);
+  color: var(--color-text-primary);
+}
+
+body {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-background);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}
+
+/* Terminal-style text glow */
+.text-glow {
+  text-shadow: 0 0 10px currentColor;
+}
+
+/* Pulsing animation for scan progress */
+@keyframes pulse-glow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* Matrix rain animation (subtle background) */
+@keyframes matrix-fade {
+  0% { opacity: 0; transform: translateY(-10px); }
+  50% { opacity: 0.3; }
+  100% { opacity: 0; transform: translateY(20px); }
+}
+
+.animate-matrix {
+  animation: matrix-fade 3s ease-in-out infinite;
+}

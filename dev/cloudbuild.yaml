@@ -1,0 +1,73 @@
+# =============================================================================
+# Democratized Reviewer — Cloud Build Configuration
+#
+# Build and deploy to Cloud Run using Artifact Registry.
+#
+# Usage (manual trigger):
+#   gcloud builds submit --config cloudbuild.yaml \
+#     --substitutions=_REGION=us-central1,_SA_EMAIL=democratized-reviewer-sa@PROJECT.iam.gserviceaccount.com
+#
+# The setup.sh script uses `gcloud builds submit --tag` for simplicity,
+# but this file provides a more configurable pipeline.
+# =============================================================================
+
+substitutions:
+  _REGION: us-central1
+  _SERVICE_NAME: democratized-reviewer
+  _AR_REPO: democratized-reviewer
+  # Runtime service account — MUST be supplied; defaults to a sentinel that
+  # makes the deploy fail loudly rather than silently using the default
+  # Compute SA (which carries Editor in many projects).
+  _SA_EMAIL: REPLACE_ME_WITH_RUNTIME_SA
+
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/app:${SHORT_SHA}'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/app:latest'
+      - '.'
+    id: 'build'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '--all-tags'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/app'
+    id: 'push'
+    waitFor: ['build']
+
+  # Deploy to Cloud Run. Private by default (Cloud Run IAM gates access).
+  # Pinned to a single instance because the app keeps in-memory state.
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - '${_SERVICE_NAME}'
+      - '--image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/app:${SHORT_SHA}'
+      - '--platform=managed'
+      - '--region=${_REGION}'
+      - '--service-account=${_SA_EMAIL}'
+      - '--no-allow-unauthenticated'
+      - '--memory=1Gi'
+      - '--cpu=1'
+      - '--timeout=300'
+      - '--concurrency=80'
+      - '--min-instances=1'
+      - '--max-instances=1'
+      - '--quiet'
+    id: 'deploy'
+    waitFor: ['push']
+
+images:
+  - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/app:${SHORT_SHA}'
+  - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/app:latest'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: 'E2_HIGHCPU_8'
+
+timeout: '900s'
