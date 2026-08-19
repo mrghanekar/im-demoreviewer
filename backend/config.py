@@ -67,6 +67,13 @@ class Settings(BaseSettings):
     gcloud_timeout_long_seconds: int = 120
     check_timeout_seconds: int = 120
 
+    # Compliance configuration
+    # Region allow-list consulted by REG-004 (data-residency check in
+    # backend/checks/compliance/). Empty (the default) leaves the check inert —
+    # it reports nothing until an operator opts in. For an Indian DPDP/CERT-In
+    # engagement set DR_DATA_RESIDENCY_ALLOWED_REGIONS='["asia-south1","asia-south2"]'.
+    data_residency_allowed_regions: list[str] = []
+
     # AI configuration — only Gemini 3-series models are allowed.
     ai_model: str = "gemini-3-flash"
     ai_timeout_seconds: int = 120

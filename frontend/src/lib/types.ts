@@ -14,7 +14,8 @@ export type ServiceCategory =
   | 'networking' | 'iam' | 'data' | 'monitoring' | 'billing' | 'vertex_ai'
   | 'cloud_run' | 'cloud_functions' | 'secret_manager' | 'cloud_build'
   | 'memorystore' | 'firestore' | 'spanner' | 'iap' | 'composer' | 'posture'
-  | 'alloydb' | 'app_engine' | 'cloud_run_jobs';
+  | 'alloydb' | 'app_engine' | 'cloud_run_jobs'
+  | 'api_security' | 'artifact_registry' | 'patch_management' | 'compliance';
 export type ScanStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
 export type CheckStatus = 'pending' | 'running' | 'passed' | 'failed' | 'errored' | 'skipped';
 export type CostAnalysisStatus = 'pending' | 'running' | 'completed' | 'failed';
@@ -162,7 +163,17 @@ export interface CheckCatalogEntry {
   category: Category;
   service: string;
   service_category: ServiceCategory;
+  /** Framework key -> control IDs this check is evidence for. Empty when untagged. */
+  compliance_refs?: Record<string, string[]>;
 }
+
+/** Short labels for the compliance frameworks in backend/core/compliance.py. */
+export const FRAMEWORK_LABELS: Record<string, string> = {
+  CIS_GCP_V3: 'CIS GCP v3',
+  ISO_27001: 'ISO 27001',
+  CERT_IN: 'CERT-In',
+  DPDP: 'DPDP',
+};
 
 export interface HealthResponse {
   status: string;
@@ -231,6 +242,10 @@ export const SERVICE_LABELS: Record<ServiceCategory, string> = {
   alloydb: 'AlloyDB',
   app_engine: 'App Engine',
   cloud_run_jobs: 'Cloud Run Jobs',
+  api_security: 'API Security',
+  artifact_registry: 'Artifact Registry',
+  patch_management: 'Patch Management',
+  compliance: 'Compliance & Residency',
 };
 
 export const ALL_SERVICE_CATEGORIES: ServiceCategory[] = [
@@ -239,4 +254,5 @@ export const ALL_SERVICE_CATEGORIES: ServiceCategory[] = [
   'cloud_run', 'cloud_functions', 'secret_manager', 'cloud_build',
   'memorystore', 'firestore', 'spanner', 'iap', 'composer', 'posture',
   'alloydb', 'app_engine', 'cloud_run_jobs',
+  'api_security', 'artifact_registry', 'patch_management', 'compliance',
 ];

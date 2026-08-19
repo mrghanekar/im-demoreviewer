@@ -4,7 +4,7 @@ Checks: SP-001 through SP-004
 """
 
 import logging
-from typing import Any
+from typing import Any, ClassVar
 
 from backend.checks.base import BaseCheck
 from backend.core.models import Category, CheckResult, Severity, ServiceCategory
@@ -36,6 +36,7 @@ class SpannerSingleRegion(BaseCheck):
     service = "Spanner"
     service_category = ServiceCategory.SPANNER
     references = ["https://cloud.google.com/spanner/docs/instance-configurations"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.14", "A.5.30"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -63,6 +64,7 @@ class SpannerNoBackupSchedule(BaseCheck):
     service = "Spanner"
     service_category = ServiceCategory.SPANNER
     references = ["https://cloud.google.com/spanner/docs/backup"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.13"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -103,6 +105,7 @@ class SpannerNoCMEK(BaseCheck):
     service = "Spanner"
     service_category = ServiceCategory.SPANNER
     references = ["https://cloud.google.com/spanner/docs/cmek"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.24"], "DPDP": ["8(5)"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []

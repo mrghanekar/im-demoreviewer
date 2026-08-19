@@ -24,7 +24,7 @@ export function Home() {
         </h1>
         <p className="text-xl text-[--color-text-secondary] max-w-2xl mx-auto mb-10 font-mono">
           <span className="text-[--color-accent-green] mr-2 opacity-60">$</span>
-          Audit your Google Cloud environment against 199 best-practice checks.
+          Audit your Google Cloud environment against 236 best-practice checks.
         </p>
 
         {saInfo ? (
@@ -63,7 +63,7 @@ export function Home() {
             to="/catalog"
             className="text-xs font-mono text-[--color-text-secondary] hover:text-[--color-accent-green] underline underline-offset-4"
           >
-            or browse the 199-check catalog first →
+            or browse the 236-check catalog first →
           </Link>
         </div>
       </div>

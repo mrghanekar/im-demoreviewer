@@ -4,7 +4,7 @@ Checks: CB-001 through CB-005
 """
 
 import logging
-from typing import Any
+from typing import Any, ClassVar
 
 from backend.checks.base import BaseCheck
 from backend.core.models import Category, CheckResult, Severity, ServiceCategory
@@ -36,6 +36,7 @@ class TriggerUntrustedForkNoApproval(BaseCheck):
     service = "Cloud Build"
     service_category = ServiceCategory.CLOUD_BUILD
     references = ["https://cloud.google.com/build/docs/automating-builds/github/build-repos-from-github#approving_pull_requests_from_forks"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.25", "A.8.32"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -67,6 +68,7 @@ class TriggerDefaultServiceAccount(BaseCheck):
     service = "Cloud Build"
     service_category = ServiceCategory.CLOUD_BUILD
     references = ["https://cloud.google.com/build/docs/securing-builds/configure-user-specified-service-accounts"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.2", "A.8.3"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -94,6 +96,7 @@ class TriggerNoApprovalGate(BaseCheck):
     service = "Cloud Build"
     service_category = ServiceCategory.CLOUD_BUILD
     references = ["https://cloud.google.com/build/docs/automating-builds/approve-build-from-trigger"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.32"]}
 
     PROD_KEYWORDS = ("prod", "release", "deploy")
 
@@ -124,6 +127,7 @@ class TriggerNoSubstitutionsValidation(BaseCheck):
     service = "Cloud Build"
     service_category = ServiceCategory.CLOUD_BUILD
     references = ["https://cloud.google.com/build/docs/configuring-builds/substitute-variable-values"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.25", "A.8.32"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -152,6 +156,7 @@ class PublicWorkerPool(BaseCheck):
     service = "Cloud Build"
     service_category = ServiceCategory.CLOUD_BUILD
     references = ["https://cloud.google.com/build/docs/private-pools/private-pools-overview"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.22"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []

@@ -4,7 +4,7 @@ Checks: CR-001 through CR-008
 """
 
 import logging
-from typing import Any
+from typing import Any, ClassVar
 
 from backend.checks.base import BaseCheck
 from backend.core.models import Category, CheckResult, Severity, ServiceCategory
@@ -41,6 +41,7 @@ class CloudRunPublicAccess(BaseCheck):
     service_category = ServiceCategory.CLOUD_RUN
     fix_command_template = "gcloud run services remove-iam-policy-binding {name} --member=allUsers --role=roles/run.invoker --region={region} --project={project_id}"
     references = ["https://cloud.google.com/run/docs/authenticating/overview"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.5.15", "A.8.20", "A.8.21"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -80,6 +81,7 @@ class CloudRunPlaintextSecrets(BaseCheck):
     service = "Cloud Run"
     service_category = ServiceCategory.CLOUD_RUN
     references = ["https://cloud.google.com/run/docs/configuring/secrets"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.5.17", "A.8.24"]}
 
     SECRET_PATTERNS = ("SECRET", "PASSWORD", "PASSWD", "TOKEN", "API_KEY", "PRIVATE_KEY", "CREDENTIALS")
 
@@ -120,6 +122,7 @@ class CloudRunNoVPCConnector(BaseCheck):
     service = "Cloud Run"
     service_category = ServiceCategory.CLOUD_RUN
     references = ["https://cloud.google.com/run/docs/configuring/connecting-vpc"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.22"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -209,6 +212,7 @@ class CloudRunDefaultServiceAccount(BaseCheck):
     service = "Cloud Run"
     service_category = ServiceCategory.CLOUD_RUN
     references = ["https://cloud.google.com/run/docs/securing/service-identity"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.2", "A.8.3"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -239,6 +243,7 @@ class CloudRunNoCMEK(BaseCheck):
     service = "Cloud Run"
     service_category = ServiceCategory.CLOUD_RUN
     references = ["https://cloud.google.com/run/docs/securing/using-cmek"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.24"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -268,6 +273,7 @@ class CloudRunIngressAllAllowed(BaseCheck):
     service = "Cloud Run"
     service_category = ServiceCategory.CLOUD_RUN
     references = ["https://cloud.google.com/run/docs/securing/ingress"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.20", "A.8.21"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []

@@ -8,7 +8,7 @@ Checks: IAM-003, IAM-007.
 
 import logging
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, ClassVar
 
 from backend.checks.base import BaseCheck
 from backend.core.models import Category, CheckResult, Severity, ServiceCategory
@@ -51,6 +51,7 @@ class UserManagedSAKeys(BaseCheck):
     references = [
         "https://cloud.google.com/iam/docs/best-practices-for-managing-service-account-keys",
     ]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"CIS_GCP_V3": ["1.7"], "ISO_27001": ["A.5.17"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -122,6 +123,7 @@ class UnusedServiceAccounts(BaseCheck):
         "https://cloud.google.com/iam/docs/service-account-overview#disabled",
         "https://cloud.google.com/policy-intelligence/docs/activity-analyzer-service-account-authentication",
     ]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.5.16", "A.5.18"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []

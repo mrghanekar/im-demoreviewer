@@ -4,7 +4,7 @@ Checks: GKE-001 through GKE-010
 """
 
 import logging
-from typing import Any
+from typing import Any, ClassVar
 
 from backend.checks.base import BaseCheck
 from backend.core.models import Category, CheckResult, Severity, ServiceCategory
@@ -23,6 +23,7 @@ class GKELegacyAuth(BaseCheck):
     gcloud_command = "gcloud container clusters list --project={project_id} --format=json"
     fix_command_template = "gcloud container clusters update {name} --no-enable-legacy-authorization --zone={zone} --project={project_id}"
     references = ["https://cloud.google.com/kubernetes-engine/docs/how-to/role-based-access-control"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.5.15", "A.8.2"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -59,6 +60,7 @@ class GKENetworkPolicy(BaseCheck):
     service_category = ServiceCategory.GKE
     fix_command_template = "gcloud container clusters update {name} --enable-network-policy --zone={zone} --project={project_id}"
     references = ["https://cloud.google.com/kubernetes-engine/docs/how-to/network-policy"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.20", "A.8.22"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -96,6 +98,7 @@ class GKEWorkloadIdentity(BaseCheck):
     service_category = ServiceCategory.GKE
     fix_command_template = "gcloud container clusters update {name} --workload-pool={project_id}.svc.id.goog --zone={zone} --project={project_id}"
     references = ["https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.5.16", "A.5.17"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -133,6 +136,7 @@ class GKEShieldedNodes(BaseCheck):
     service_category = ServiceCategory.GKE
     fix_command_template = "gcloud container clusters update {name} --enable-shielded-nodes --zone={zone} --project={project_id}"
     references = ["https://cloud.google.com/kubernetes-engine/docs/how-to/shielded-gke-nodes"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.9"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -168,6 +172,7 @@ class GKEPrivateCluster(BaseCheck):
     service = "GKE"
     service_category = ServiceCategory.GKE
     references = ["https://cloud.google.com/kubernetes-engine/docs/how-to/private-clusters"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.20", "A.8.22"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -203,6 +208,7 @@ class GKEAutoUpgrade(BaseCheck):
     service = "GKE"
     service_category = ServiceCategory.GKE
     references = ["https://cloud.google.com/kubernetes-engine/docs/how-to/node-auto-upgrades"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.8"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -277,6 +283,7 @@ class GKEBinaryAuthorization(BaseCheck):
     service = "GKE"
     service_category = ServiceCategory.GKE
     references = ["https://cloud.google.com/binary-authorization/docs/overview"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.32"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -312,6 +319,7 @@ class GKEIntraNodeVisibility(BaseCheck):
     service = "GKE"
     service_category = ServiceCategory.GKE
     references = ["https://cloud.google.com/kubernetes-engine/docs/how-to/intranode-visibility"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.15", "A.8.16"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -347,6 +355,7 @@ class GKEClusterLogging(BaseCheck):
     service = "GKE"
     service_category = ServiceCategory.GKE
     references = ["https://cloud.google.com/kubernetes-engine/docs/how-to/logging"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.15"], "CERT_IN": ["VI"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -401,6 +410,7 @@ class GKEDeprecatedKubernetesVersion(BaseCheck):
     service = "GKE"
     service_category = ServiceCategory.GKE
     references = ["https://cloud.google.com/kubernetes-engine/docs/release-notes"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.8"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -429,6 +439,7 @@ class GKEBackupNotEnabled(BaseCheck):
     service = "GKE"
     service_category = ServiceCategory.GKE
     references = ["https://cloud.google.com/kubernetes-engine/docs/add-on/backup-for-gke/concepts/backup-for-gke"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.13"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []

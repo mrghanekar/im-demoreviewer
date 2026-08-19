@@ -4,7 +4,7 @@ Checks: NET-001 through NET-013
 """
 
 import logging
-from typing import Any
+from typing import Any, ClassVar
 
 from backend.checks.base import BaseCheck
 from backend.core.models import Category, CheckResult, Severity, ServiceCategory
@@ -69,6 +69,7 @@ class OpenFirewallSSH(BaseCheck):
     gcloud_command = "gcloud compute firewall-rules list --project={project_id} --format=json"
     fix_command_template = "gcloud compute firewall-rules update {name} --source-ranges=RESTRICTED_CIDR --project={project_id}"
     references = ["https://cloud.google.com/vpc/docs/firewalls"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"CIS_GCP_V3": ["3.6"], "ISO_27001": ["A.8.20"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -112,6 +113,7 @@ class OpenFirewallRDP(BaseCheck):
     service_category = ServiceCategory.NETWORKING
     fix_command_template = "gcloud compute firewall-rules update {name} --source-ranges=RESTRICTED_CIDR --project={project_id}"
     references = ["https://cloud.google.com/vpc/docs/firewalls"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"CIS_GCP_V3": ["3.7"], "ISO_27001": ["A.8.20"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -154,6 +156,7 @@ class OverlyPermissiveFirewall(BaseCheck):
     service = "Networking"
     service_category = ServiceCategory.NETWORKING
     references = ["https://cloud.google.com/vpc/docs/firewalls#best_practices_for_firewall_rules"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.20"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -198,6 +201,7 @@ class DefaultNetworkExists(BaseCheck):
     service_category = ServiceCategory.NETWORKING
     fix_command_template = "gcloud compute networks delete default --project={project_id} --quiet"
     references = ["https://cloud.google.com/vpc/docs/vpc#default-network"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"CIS_GCP_V3": ["3.1"], "ISO_27001": ["A.8.20", "A.8.22"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -232,6 +236,7 @@ class FlowLogsDisabled(BaseCheck):
     service_category = ServiceCategory.NETWORKING
     fix_command_template = "gcloud compute networks subnets update {name} --enable-flow-logs --region={region} --project={project_id}"
     references = ["https://cloud.google.com/vpc/docs/using-flow-logs"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"CIS_GCP_V3": ["3.8"], "ISO_27001": ["A.8.15", "A.8.16"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -274,6 +279,7 @@ class PrivateGoogleAccess(BaseCheck):
     service_category = ServiceCategory.NETWORKING
     fix_command_template = "gcloud compute networks subnets update {name} --enable-private-ip-google-access --region={region} --project={project_id}"
     references = ["https://cloud.google.com/vpc/docs/configure-private-google-access"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.20"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -345,6 +351,7 @@ class DNSSECNotEnabled(BaseCheck):
     service = "Networking"
     service_category = ServiceCategory.NETWORKING
     references = ["https://cloud.google.com/dns/docs/dnssec"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"CIS_GCP_V3": ["3.3"], "ISO_27001": ["A.8.20", "A.8.21"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -385,6 +392,7 @@ class SSLPolicyWeak(BaseCheck):
     service = "Networking"
     service_category = ServiceCategory.NETWORKING
     references = ["https://cloud.google.com/load-balancing/docs/ssl-policies-concepts"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"CIS_GCP_V3": ["3.9"], "ISO_27001": ["A.8.24"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -427,6 +435,7 @@ class NoCloudArmor(BaseCheck):
     service = "Networking"
     service_category = ServiceCategory.NETWORKING
     references = ["https://cloud.google.com/armor/docs/cloud-armor-overview"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.20"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -455,6 +464,7 @@ class LegacyVPNGateway(BaseCheck):
     service = "Networking"
     service_category = ServiceCategory.NETWORKING
     references = ["https://cloud.google.com/network-connectivity/docs/vpn/concepts/overview"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.14"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -485,6 +495,7 @@ class HTTPSRedirectMissing(BaseCheck):
     service = "Networking"
     service_category = ServiceCategory.NETWORKING
     references = ["https://cloud.google.com/load-balancing/docs/https/setting-up-http-https-redirect"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.24"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -564,6 +575,7 @@ class LBNoCloudArmor(BaseCheck):
     service = "Networking"
     service_category = ServiceCategory.NETWORKING
     references = ["https://cloud.google.com/armor/docs/security-policy-overview"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.20"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -599,6 +611,7 @@ class CertificateNearExpiry(BaseCheck):
     service = "Networking"
     service_category = ServiceCategory.NETWORKING
     references = ["https://cloud.google.com/load-balancing/docs/ssl-certificates/google-managed-certs"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.24"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         from datetime import datetime, timezone, timedelta

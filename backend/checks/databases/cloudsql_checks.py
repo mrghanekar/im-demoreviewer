@@ -4,7 +4,7 @@ Checks: DB-001 through DB-015
 """
 
 import logging
-from typing import Any
+from typing import Any, ClassVar
 
 from backend.checks.base import BaseCheck
 from backend.core.models import Category, CheckResult, Severity, ServiceCategory
@@ -23,6 +23,7 @@ class SQLPublicIP(BaseCheck):
     gcloud_command = "gcloud sql instances list --project={project_id} --format=json"
     fix_command_template = "gcloud sql instances patch {name} --no-assign-ip --project={project_id}"
     references = ["https://cloud.google.com/sql/docs/mysql/configure-private-ip"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"CIS_GCP_V3": ["6.5"], "ISO_27001": ["A.8.20", "A.8.22"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -61,6 +62,7 @@ class SQLNoSSL(BaseCheck):
     service_category = ServiceCategory.DATABASES
     fix_command_template = "gcloud sql instances patch {name} --require-ssl --project={project_id}"
     references = ["https://cloud.google.com/sql/docs/mysql/configure-ssl-instance"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"CIS_GCP_V3": ["6.4"], "ISO_27001": ["A.8.24", "A.8.21"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -98,6 +100,7 @@ class SQLNoAutomatedBackups(BaseCheck):
     service_category = ServiceCategory.DATABASES
     fix_command_template = "gcloud sql instances patch {name} --backup-start-time=02:00 --project={project_id}"
     references = ["https://cloud.google.com/sql/docs/mysql/backup-recovery/backing-up"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"CIS_GCP_V3": ["6.7"], "ISO_27001": ["A.8.13"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -134,6 +137,7 @@ class SQLNoHA(BaseCheck):
     service = "CloudSQL"
     service_category = ServiceCategory.DATABASES
     references = ["https://cloud.google.com/sql/docs/mysql/high-availability"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.14", "A.5.30"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -169,6 +173,7 @@ class SQLAuthNetworks(BaseCheck):
     service = "CloudSQL"
     service_category = ServiceCategory.DATABASES
     references = ["https://cloud.google.com/sql/docs/mysql/authorize-networks"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"CIS_GCP_V3": ["6.6"], "ISO_27001": ["A.8.20", "A.8.22"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -208,6 +213,7 @@ class SQLNoPointInTimeRecovery(BaseCheck):
     service = "CloudSQL"
     service_category = ServiceCategory.DATABASES
     references = ["https://cloud.google.com/sql/docs/mysql/backup-recovery/pitr"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.13", "A.5.29"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -278,6 +284,7 @@ class SQLOldVersion(BaseCheck):
     service = "CloudSQL"
     service_category = ServiceCategory.DATABASES
     references = ["https://cloud.google.com/sql/docs/mysql/db-versions"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.8"]}
 
     OLD_VERSIONS = {"MYSQL_5_6", "MYSQL_5_7", "POSTGRES_9_6", "POSTGRES_10", "POSTGRES_11", "SQLSERVER_2017_STANDARD"}
 
@@ -314,6 +321,7 @@ class SQLNoCMEK(BaseCheck):
     service = "CloudSQL"
     service_category = ServiceCategory.DATABASES
     references = ["https://cloud.google.com/sql/docs/mysql/cmek"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.24"], "DPDP": ["8(5)"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -418,6 +426,7 @@ class SQLStorageAutoResize(BaseCheck):
     service = "CloudSQL"
     service_category = ServiceCategory.DATABASES
     references = ["https://cloud.google.com/sql/docs/mysql/instance-settings#automatic-storage-increase-2ndgen"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.6"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -452,6 +461,7 @@ class SQLPasswordPolicy(BaseCheck):
     service = "CloudSQL"
     service_category = ServiceCategory.DATABASES
     references = ["https://cloud.google.com/sql/docs/mysql/built-in-authentication"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.5.17", "A.8.5"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -487,6 +497,7 @@ class SQLAuditLogging(BaseCheck):
     service = "CloudSQL"
     service_category = ServiceCategory.DATABASES
     references = ["https://cloud.google.com/sql/docs/mysql/pg-audit"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.15"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -535,6 +546,7 @@ class SQLDeletionProtection(BaseCheck):
     service_category = ServiceCategory.DATABASES
     fix_command_template = "gcloud sql instances patch {name} --deletion-protection --project={project_id}"
     references = ["https://cloud.google.com/sql/docs/mysql/deletion-protection"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.10"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -586,6 +598,7 @@ class CloudSQLIAMAuthDisabled(BaseCheck):
     service = "Cloud SQL"
     service_category = ServiceCategory.DATABASES
     references = ["https://cloud.google.com/sql/docs/postgres/authentication"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.5", "A.5.16"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -614,6 +627,7 @@ class CloudSQLNoPasswordPolicy(BaseCheck):
     service = "Cloud SQL"
     service_category = ServiceCategory.DATABASES
     references = ["https://cloud.google.com/sql/docs/postgres/built-in-authentication"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.5.17", "A.8.5"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []

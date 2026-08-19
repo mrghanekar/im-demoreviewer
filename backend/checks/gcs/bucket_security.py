@@ -4,7 +4,7 @@ Checks: GCS-001 through GCS-010
 """
 
 import logging
-from typing import Any
+from typing import Any, ClassVar
 
 from backend.checks.base import BaseCheck
 from backend.core.models import Category, CheckResult, Severity, ServiceCategory
@@ -26,6 +26,7 @@ class PublicBucket(BaseCheck):
         "--member='{member}' --role='{role}'"
     )
     references = ["https://cloud.google.com/storage/docs/public-access-prevention"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"CIS_GCP_V3": ["5.1"], "ISO_27001": ["A.5.15", "A.8.3"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -72,6 +73,7 @@ class UniformBucketAccess(BaseCheck):
     service_category = ServiceCategory.GCS
     fix_command_template = "gcloud storage buckets update gs://{bucket} --uniform-bucket-level-access"
     references = ["https://cloud.google.com/storage/docs/uniform-bucket-level-access"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"CIS_GCP_V3": ["5.2"], "ISO_27001": ["A.5.15"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -113,6 +115,7 @@ class BucketNotCMEK(BaseCheck):
     service_category = ServiceCategory.GCS
     fix_command_template = "gcloud storage buckets update gs://{bucket} --default-encryption-key=projects/{project_id}/locations/{location}/keyRings/KEY_RING/cryptoKeys/KEY_NAME"
     references = ["https://cloud.google.com/storage/docs/encryption/using-customer-managed-keys"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.24"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -151,6 +154,7 @@ class VersioningNotEnabled(BaseCheck):
     service_category = ServiceCategory.GCS
     fix_command_template = "gcloud storage buckets update gs://{bucket} --versioning"
     references = ["https://cloud.google.com/storage/docs/object-versioning"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.13"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -228,6 +232,7 @@ class BucketLoggingNotEnabled(BaseCheck):
     service_category = ServiceCategory.GCS
     fix_command_template = "gcloud storage buckets update gs://{bucket} --log-bucket=gs://{bucket}-logs"
     references = ["https://cloud.google.com/storage/docs/access-logs"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.15"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -266,6 +271,7 @@ class NoRetentionPolicy(BaseCheck):
     service_category = ServiceCategory.GCS
     fix_command_template = "gcloud storage buckets update gs://{bucket} --retention-period=365d"
     references = ["https://cloud.google.com/storage/docs/bucket-lock"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.5.33"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -304,6 +310,7 @@ class SingleRegionBucket(BaseCheck):
     service_category = ServiceCategory.GCS
     fix_command_template = ""
     references = ["https://cloud.google.com/storage/docs/locations"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.14"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -348,6 +355,7 @@ class PublicAccessPreventionNotEnforced(BaseCheck):
     service_category = ServiceCategory.GCS
     fix_command_template = "gcloud storage buckets update gs://{bucket} --public-access-prevention=enforced"
     references = ["https://cloud.google.com/storage/docs/public-access-prevention"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.5.15", "A.8.12"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -387,6 +395,7 @@ class NoObjectLock(BaseCheck):
     service_category = ServiceCategory.GCS
     fix_command_template = "gcloud storage buckets update gs://{bucket} --lock-retention-period"
     references = ["https://cloud.google.com/storage/docs/bucket-lock"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.5.33"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -429,6 +438,7 @@ class CMEKKeyInSameProject(BaseCheck):
     service = "GCS"
     service_category = ServiceCategory.GCS
     references = ["https://cloud.google.com/kms/docs/separation-of-duties"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.24"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []

@@ -1,6 +1,6 @@
 # Democratized Reviewer
 
-> **Audit your Google Cloud environment against 213 best-practice checks across 24 service areas.**
+> **Audit your Google Cloud environment against 236 best-practice checks across 28 service areas.**
 > Viewer-only access. Actionable fix commands. Per-finding AI explanations via Vertex Gemini.
 
 **Democratized Reviewer** is a audit tool designed for Cloud practioners, DevOps security engineers, SREs, and cloud architects etc all related roles. It deploys as a serverless container on **Cloud Run**, scanning your organization or project using strictly **read-only** IAM role.
@@ -9,12 +9,13 @@
 
 ## Features
 
-- **Read-Only Scanning** — Uses strictly viewer-only IAM roles. Zero write operations, zero risk.
+- **Read-Only Scanning** — Every check is a read-only `gcloud` call; the scanner never mutates the environment it audits. The one exception is report export, which writes to the GCS bucket the deploy script creates for that purpose (`storage.objectAdmin` on that bucket only).
 - **Serverless (and hence Fast)** — Runs entirely on Cloud Run. No VMs to manage.
 - **Modern Dashboard** — React-based UI with dark mode, severity filtering, and exportable reports.
 - **Actionable Fixes** — Every finding includes a precise gcloud command to remediate the issue.
 - **AI-Powered Explanations** — Uses Gemini to explain findings and suggest fixes in plain English.
-- **200+ Checks** — Covers 21 categories: GKE, GCE, GCS, Cloud SQL, Security, Networking, IAM, Data, Monitoring, Billing, Vertex AI, Cloud Run, Cloud Functions, Secret Manager, Cloud Build, Memorystore, Firestore, Spanner, IAP, Composer, and org-level Architecture Posture.
+- **236 Checks** — Covers 28 categories: GKE, GCE, GCS, Cloud SQL, AlloyDB, Spanner, Firestore, Memorystore, Security, Networking, IAM, IAP, Data, Monitoring, Billing, Vertex AI, Cloud Run, Cloud Run Jobs, Cloud Functions, App Engine, Composer, Secret Manager, Cloud Build, Artifact Registry, API Security, Patch Management, Compliance & Residency, and org-level Architecture Posture.
+- **Compliance Mapping** — Checks are tagged with the controls they are evidence for (CIS GCP Foundation v3.0, ISO/IEC 27001:2022 Annex A, CERT-In Directions 2022, DPDP Act 2023). Reports and the `/scans/{id}/compliance` endpoint regroup findings by control instead of by service.
 - **Secure by Design** — Private by default. Access is gated by Cloud Run IAM; open the dashboard via `gcloud run services proxy`.
 
 ---
@@ -195,7 +196,7 @@ moving that state to a shared store.
 
 ## Service Checks Catalog
 
-The tool performs **213** automated checks across your GCP environment
+The tool performs **236** automated checks across your GCP environment
 (post-dedup; original v1 catalog was 130).
 
 > **2026-05 catalog expansion** added 9 new service categories
@@ -510,7 +511,7 @@ Billing:    BIL-011 BigQuery LOGICAL billing         |  BIL-012 idle GKE node po
 democratized-reviewer/
 ├── backend/                 # FastAPI application
 │   ├── api/                 # API routes and middleware
-│   ├── checks/              # Logic for 213 GCP checks
+│   ├── checks/              # Logic for 236 GCP checks
 │   ├── core/                # Core engine, scanning logic
 │   └── utils/               # Helpers (formatting, GCP)
 ├── frontend/                # React application
@@ -555,7 +556,7 @@ flowchart TD
             
             subgraph Engine ["⚙️ Audit Engine"]
                 Scanner["Orchestrator"]
-                Checks["📚 213 Checks"]
+                Checks["📚 236 Checks"]
             end
         end
     end

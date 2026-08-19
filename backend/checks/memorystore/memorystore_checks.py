@@ -4,7 +4,7 @@ Checks: MS-001 through MS-005
 """
 
 import logging
-from typing import Any
+from typing import Any, ClassVar
 
 from backend.checks.base import BaseCheck
 from backend.core.models import Category, CheckResult, Severity, ServiceCategory
@@ -36,6 +36,7 @@ class RedisAuthDisabled(BaseCheck):
     service = "Memorystore"
     service_category = ServiceCategory.MEMORYSTORE
     references = ["https://cloud.google.com/memorystore/docs/redis/about-redis-auth"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.5", "A.5.15"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -62,6 +63,7 @@ class RedisNoInTransitEncryption(BaseCheck):
     service = "Memorystore"
     service_category = ServiceCategory.MEMORYSTORE
     references = ["https://cloud.google.com/memorystore/docs/redis/about-in-transit-encryption"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.24", "A.8.21"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -89,6 +91,7 @@ class RedisBasicTierNoHA(BaseCheck):
     service = "Memorystore"
     service_category = ServiceCategory.MEMORYSTORE
     references = ["https://cloud.google.com/memorystore/docs/redis/redis-tiers"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.14"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -115,6 +118,7 @@ class RedisNoCMEK(BaseCheck):
     service = "Memorystore"
     service_category = ServiceCategory.MEMORYSTORE
     references = ["https://cloud.google.com/memorystore/docs/redis/about-cmek"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.24"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []

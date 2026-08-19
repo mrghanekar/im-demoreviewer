@@ -4,7 +4,7 @@ Checks: IAM-001, IAM-006, IAM-008, IAM-009, IAM-010, IAM-012
 """
 
 import logging
-from typing import Any
+from typing import Any, ClassVar
 
 from backend.checks._identity import is_google_managed_agent
 from backend.checks.base import BaseCheck
@@ -38,6 +38,7 @@ class PrimitiveRolesInUse(BaseCheck):
         "https://cloud.google.com/iam/docs/understanding-roles#primitive_roles",
         "https://cloud.google.com/iam/docs/using-deny-policies",
     ]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.5.15", "A.8.2"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -93,6 +94,7 @@ class AllUsersInBindings(BaseCheck):
     references = [
         "https://cloud.google.com/iam/docs/overview#all-users",
     ]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.5.15", "A.8.3"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -144,6 +146,7 @@ class ExternalMembersInBindings(BaseCheck):
     references = [
         "https://cloud.google.com/resource-manager/docs/organization-policy/restricting-domains",
     ]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"CIS_GCP_V3": ["1.1"], "ISO_27001": ["A.5.16", "A.5.18"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -202,6 +205,7 @@ class NoCustomRoles(BaseCheck):
     references = [
         "https://cloud.google.com/iam/docs/creating-custom-roles",
     ]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.5.15"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -244,6 +248,7 @@ class DomainRestrictedSharingNotEnforced(BaseCheck):
     references = [
         "https://cloud.google.com/resource-manager/docs/organization-policy/restricting-domains",
     ]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.5.15", "A.5.18"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         # Only meaningful for projects that live under an organization.
@@ -309,6 +314,7 @@ class OverPermissionedServiceAccounts(BaseCheck):
     references = [
         "https://cloud.google.com/iam/docs/best-practices-service-accounts#least-privilege",
     ]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"CIS_GCP_V3": ["1.4", "1.5"], "ISO_27001": ["A.5.15", "A.8.2"]}
 
     OVERLY_BROAD_ROLES = {
         "roles/owner", "roles/editor",
@@ -374,6 +380,7 @@ class WorkloadIdentityNotUsed(BaseCheck):
     references = [
         "https://cloud.google.com/iam/docs/workload-identity-federation",
     ]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.5.17"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -436,6 +443,7 @@ class NoOrgLevelIAMAudit(BaseCheck):
     references = [
         "https://cloud.google.com/iam/docs/audit-logging",
     ]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.5.18"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         # This check is informational — always recommend org-level audit
@@ -475,6 +483,7 @@ class DataAccessAuditLogsDisabled(BaseCheck):
     service = "IAM"
     service_category = ServiceCategory.IAM
     references = ["https://cloud.google.com/logging/docs/audit/configure-data-access"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"CIS_GCP_V3": ["2.1"], "ISO_27001": ["A.8.15"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -523,6 +532,7 @@ class ConditionalBindingsUnused(BaseCheck):
     service = "IAM"
     service_category = ServiceCategory.IAM
     references = ["https://cloud.google.com/iam/docs/conditions-overview"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.5.15"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -561,6 +571,7 @@ class ServiceAccountImpersonationGrants(BaseCheck):
     service = "IAM"
     service_category = ServiceCategory.IAM
     references = ["https://cloud.google.com/iam/docs/impersonating-service-accounts"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.5.15", "A.8.2"]}
 
     DANGEROUS_ROLES = {"roles/iam.serviceAccountTokenCreator", "roles/iam.serviceAccountUser"}
 
@@ -614,6 +625,7 @@ class ShadowAdminViaSAKeyAdmin(BaseCheck):
     service = "IAM"
     service_category = ServiceCategory.IAM
     references = ["https://cloud.google.com/iam/docs/best-practices-service-accounts"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"CIS_GCP_V3": ["1.8"], "ISO_27001": ["A.5.3", "A.8.2"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []

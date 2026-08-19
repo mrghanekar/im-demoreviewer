@@ -4,7 +4,7 @@ Checks: GKE-011 through GKE-020
 """
 
 import logging
-from typing import Any
+from typing import Any, ClassVar
 
 from backend.checks.base import BaseCheck
 from backend.core.models import Category, CheckResult, Severity, ServiceCategory
@@ -21,6 +21,7 @@ class GKEClusterMonitoring(BaseCheck):
     service = "GKE"
     service_category = ServiceCategory.GKE
     references = ["https://cloud.google.com/kubernetes-engine/docs/how-to/monitoring"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.16"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -93,6 +94,7 @@ class GKECosNodeImage(BaseCheck):
     service = "GKE"
     service_category = ServiceCategory.GKE
     references = ["https://cloud.google.com/container-optimized-os/docs/concepts/features-and-benefits"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.9"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -130,6 +132,7 @@ class GKEMasterAuthorizedNetworks(BaseCheck):
     service = "GKE"
     service_category = ServiceCategory.GKE
     references = ["https://cloud.google.com/kubernetes-engine/docs/how-to/authorized-networks"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.3", "A.8.20"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -165,6 +168,7 @@ class GKEPodSecurityPolicy(BaseCheck):
     service = "GKE"
     service_category = ServiceCategory.GKE
     references = ["https://cloud.google.com/kubernetes-engine/docs/how-to/podsecurityadmission"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.9"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         # This is informational — PSS enforcement needs namespace-level config
@@ -234,6 +238,7 @@ class GKEDatabaseEncryption(BaseCheck):
     service = "GKE"
     service_category = ServiceCategory.GKE
     references = ["https://cloud.google.com/kubernetes-engine/docs/how-to/encrypting-secrets"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.24"], "DPDP": ["8(5)"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -269,6 +274,7 @@ class GKEReleasChannel(BaseCheck):
     service = "GKE"
     service_category = ServiceCategory.GKE
     references = ["https://cloud.google.com/kubernetes-engine/docs/concepts/release-channels"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.8", "A.8.32"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -304,6 +310,7 @@ class GKEMaintenanceWindow(BaseCheck):
     service = "GKE"
     service_category = ServiceCategory.GKE
     references = ["https://cloud.google.com/kubernetes-engine/docs/how-to/maintenance-windows-and-exclusions"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.32"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []

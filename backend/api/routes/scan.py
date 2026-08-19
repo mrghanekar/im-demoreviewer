@@ -18,6 +18,7 @@ from backend.core.models import (
 from backend.core.scanner import Scanner, ScanStore
 from backend.api.routes.websocket import get_event_callback, generate_scan_token
 from backend.api.middleware.validation import validate_scan_id, validate_target_id
+from backend.utils.compliance_report import build_compliance_summary
 
 
 async def _background_save(store: ScanStore, scan: Scan) -> None:
@@ -320,3 +321,22 @@ async def get_summary(
         raise HTTPException(status_code=404, detail=f"Scan {scan_id} not found")
 
     return scan.summary
+
+
+@router.get("/{scan_id}/compliance")
+async def get_compliance(
+    scan_id: str,
+    store: ScanStore = Depends(get_store),
+) -> dict:
+    """Regroup this scan's results by compliance framework and control.
+
+    The findings endpoints answer "what is wrong with this service?". An
+    auditor asks the transpose — "what is the evidence for ISO 27001 A.8.20?"
+    — which is the same data indexed by control.
+    """
+    scan_id = _require_scan_id(scan_id)
+    scan = store.get(scan_id)
+    if not scan:
+        raise HTTPException(status_code=404, detail=f"Scan {scan_id} not found")
+
+    return build_compliance_summary(scan)

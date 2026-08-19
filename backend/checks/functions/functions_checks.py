@@ -4,7 +4,7 @@ Checks: FN-001 through FN-006
 """
 
 import logging
-from typing import Any
+from typing import Any, ClassVar
 
 from backend.checks.base import BaseCheck
 from backend.core.models import Category, CheckResult, Severity, ServiceCategory
@@ -54,6 +54,7 @@ class FunctionsPublicAccess(BaseCheck):
     service = "Cloud Functions"
     service_category = ServiceCategory.CLOUD_FUNCTIONS
     references = ["https://cloud.google.com/functions/docs/securing/managing-access-iam"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.5.15", "A.8.20", "A.8.21"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -91,6 +92,7 @@ class FunctionsPlaintextSecrets(BaseCheck):
     service = "Cloud Functions"
     service_category = ServiceCategory.CLOUD_FUNCTIONS
     references = ["https://cloud.google.com/functions/docs/configuring/secrets"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.5.17", "A.8.24"]}
 
     SECRET_PATTERNS = ("SECRET", "PASSWORD", "PASSWD", "TOKEN", "API_KEY", "PRIVATE_KEY", "CREDENTIALS")
 
@@ -125,6 +127,7 @@ class FunctionsDeprecatedRuntime(BaseCheck):
     service = "Cloud Functions"
     service_category = ServiceCategory.CLOUD_FUNCTIONS
     references = ["https://cloud.google.com/functions/docs/runtime-support"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.8"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -152,6 +155,7 @@ class FunctionsDefaultServiceAccount(BaseCheck):
     service = "Cloud Functions"
     service_category = ServiceCategory.CLOUD_FUNCTIONS
     references = ["https://cloud.google.com/functions/docs/securing/function-identity"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.2", "A.8.3"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -179,6 +183,7 @@ class FunctionsNoVPCConnector(BaseCheck):
     service = "Cloud Functions"
     service_category = ServiceCategory.CLOUD_FUNCTIONS
     references = ["https://cloud.google.com/functions/docs/networking/connecting-vpc"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.22"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []

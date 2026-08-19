@@ -92,7 +92,7 @@ print_banner() {
     "$CW" "$NC" \
     "$CW" "$NC"
   echo -e "${P_DIM}   ────────────────────────────────────────────────────────────${NC}"
-  echo -e "${P_DIM}   213 checks · 24 service areas · viewer-only · gemini-assisted${NC}"
+  echo -e "${P_DIM}   236 checks · 28 service areas · viewer-only · gemini-assisted${NC}"
   echo ""
 
   echo -e "${P_SECONDARY}   ${P_PRIMARY}●${P_SECONDARY}  SYSTEM READY  ·  initializing deployment sequence...${NC}"
@@ -794,7 +794,7 @@ EOF
   # State is in-memory (ScanStore, WebSocket queues, rate limiter).
   # Pin to a single instance to keep that consistent.
   # Memory + concurrency tuning: 1Gi was OOM'ing on real customer projects
-  # because 213 checks × ~5MB of in-flight gcloud JSON each can push past
+  # because 236 checks × ~5MB of in-flight gcloud JSON each can push past
   # 1GB peak when many checks run concurrently. 2Gi + max_concurrent_checks=5
   # gives ~3x headroom and keeps CPU under 100%. Bump again if scanning very
   # large orgs.

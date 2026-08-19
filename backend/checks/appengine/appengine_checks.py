@@ -8,7 +8,7 @@ public access without auth, missing IAP.
 """
 
 import logging
-from typing import Any
+from typing import Any, ClassVar
 
 from backend.checks.base import BaseCheck
 from backend.core.models import Category, CheckResult, Severity, ServiceCategory
@@ -49,6 +49,7 @@ class AppEngineDeprecatedRuntime(BaseCheck):
     service = "App Engine"
     service_category = ServiceCategory.APP_ENGINE
     references = ["https://cloud.google.com/appengine/docs/standard/lifecycle/support-schedule"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.8"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -80,6 +81,7 @@ class AppEngineDefaultServiceAccount(BaseCheck):
     service = "App Engine"
     service_category = ServiceCategory.APP_ENGINE
     references = ["https://cloud.google.com/appengine/docs/standard/python3/service-account"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.2", "A.8.3"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -112,6 +114,7 @@ class AppEnginePlaintextSecrets(BaseCheck):
     service = "App Engine"
     service_category = ServiceCategory.APP_ENGINE
     references = ["https://cloud.google.com/secret-manager/docs/access-control"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.5.17", "A.8.24"]}
 
     _SECRET_KEYS = ("password", "secret", "token", "key", "credential", "api_key", "apikey")
 
@@ -146,6 +149,7 @@ class AppEngineNoIAP(BaseCheck):
     service = "App Engine"
     service_category = ServiceCategory.APP_ENGINE
     references = ["https://cloud.google.com/iap/docs/app-engine-quickstart"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.5.15", "A.8.20"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -182,6 +186,7 @@ class AppEngineTrafficSplitOnDeprecated(BaseCheck):
     service = "App Engine"
     service_category = ServiceCategory.APP_ENGINE
     references = ["https://cloud.google.com/appengine/docs/standard/splitting-traffic"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.8"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []

@@ -4,7 +4,7 @@ Checks: IAP-001 through IAP-003
 """
 
 import logging
-from typing import Any
+from typing import Any, ClassVar
 
 from backend.checks.base import BaseCheck
 from backend.core.models import Category, CheckResult, Severity, ServiceCategory
@@ -21,6 +21,7 @@ class IAPNoBrand(BaseCheck):
     service = "IAP"
     service_category = ServiceCategory.IAP
     references = ["https://cloud.google.com/iap/docs/programmatic-oauth-clients"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -52,6 +53,7 @@ class IAPLoadBalancersWithoutIAP(BaseCheck):
     service = "IAP"
     service_category = ServiceCategory.IAP
     references = ["https://cloud.google.com/iap/docs/enabling-compute-howto"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.5.15", "A.8.5", "A.8.21"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -85,6 +87,7 @@ class IAPAppEngineNotProtected(BaseCheck):
     service = "IAP"
     service_category = ServiceCategory.IAP
     references = ["https://cloud.google.com/iap/docs/app-engine-quickstart"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.5.15", "A.8.5"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []

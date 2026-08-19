@@ -4,7 +4,7 @@ Checks: VTX-003, VTX-004
 """
 
 import logging
-from typing import Any
+from typing import Any, ClassVar
 
 from backend.checks.base import BaseCheck
 from backend.core.models import Category, CheckResult, Severity, ServiceCategory
@@ -21,6 +21,7 @@ class ModelEndpointPublic(BaseCheck):
     service = "Vertex AI"
     service_category = ServiceCategory.VERTEX_AI
     references = ["https://cloud.google.com/vertex-ai/docs/general/deployment-resource-pools"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.20", "A.8.21"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -60,6 +61,7 @@ class VectorSearchPublic(BaseCheck):
     service = "Vertex AI"
     service_category = ServiceCategory.VERTEX_AI
     references = ["https://cloud.google.com/vertex-ai/docs/vector-search/deploy-index-public"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.20", "A.8.21"], "DPDP": ["8(5)"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []

@@ -4,7 +4,7 @@ Checks: SEC-001 through SEC-010
 """
 
 import logging
-from typing import Any
+from typing import Any, ClassVar
 
 from backend.checks.base import BaseCheck
 from backend.core.models import Category, CheckResult, Severity, ServiceCategory
@@ -22,6 +22,7 @@ class OrgPolicyDomainRestriction(BaseCheck):
     service_category = ServiceCategory.SECURITY
     fix_command_template = ""
     references = ["https://cloud.google.com/resource-manager/docs/organization-policy/restricting-domains"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.5.15", "A.5.18"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -66,6 +67,7 @@ class VPCServiceControlsNotConfigured(BaseCheck):
     service_category = ServiceCategory.SECURITY
     fix_command_template = ""
     references = ["https://cloud.google.com/vpc-service-controls/docs/overview"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.12"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         # VPC SC operates at org level; we can check if the API is enabled
@@ -96,6 +98,7 @@ class SCCNotEnabled(BaseCheck):
     service_category = ServiceCategory.SECURITY
     fix_command_template = "gcloud services enable securitycenter.googleapis.com --project={project_id}"
     references = ["https://cloud.google.com/security-command-center/docs/quickstart-scc-setup"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.16", "A.8.8"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -137,6 +140,7 @@ class WebSecurityScannerNotConfigured(BaseCheck):
     service_category = ServiceCategory.SECURITY
     fix_command_template = "gcloud services enable websecurityscanner.googleapis.com --project={project_id}"
     references = ["https://cloud.google.com/security-command-center/docs/concepts-web-security-scanner-overview"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.8"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -169,6 +173,7 @@ class DLPNotConfigured(BaseCheck):
     service_category = ServiceCategory.SECURITY
     fix_command_template = "gcloud services enable dlp.googleapis.com --project={project_id}"
     references = ["https://cloud.google.com/sensitive-data-protection/docs/quickstart"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.12"], "DPDP": ["8(5)"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -201,6 +206,7 @@ class CASNotInUse(BaseCheck):
     service_category = ServiceCategory.SECURITY
     fix_command_template = "gcloud services enable privateca.googleapis.com --project={project_id}"
     references = ["https://cloud.google.com/certificate-authority-service/docs/overview"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.24"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -233,6 +239,7 @@ class AccessTransparencyNotEnabled(BaseCheck):
     service_category = ServiceCategory.SECURITY
     fix_command_template = ""
     references = ["https://cloud.google.com/assured-workloads/access-transparency/docs/overview"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.5.23", "A.8.15"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -325,6 +332,7 @@ class KMSKeyDestructionProtection(BaseCheck):
     service = "Security"
     service_category = ServiceCategory.SECURITY
     references = ["https://cloud.google.com/kms/docs/destroy-restore"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.24"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -352,6 +360,7 @@ class KMSRotationPeriodLong(BaseCheck):
     service = "Security"
     service_category = ServiceCategory.SECURITY
     references = ["https://cloud.google.com/kms/docs/key-rotation"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"CIS_GCP_V3": ["1.10"], "ISO_27001": ["A.8.24"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -387,6 +396,7 @@ class BinaryAuthorizationNotEnforced(BaseCheck):
     service = "Security"
     service_category = ServiceCategory.SECURITY
     references = ["https://cloud.google.com/binary-authorization/docs/overview"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.25"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -421,6 +431,7 @@ class CloudArmorNoManagedRules(BaseCheck):
     service = "Security"
     service_category = ServiceCategory.SECURITY
     references = ["https://cloud.google.com/armor/docs/rule-tuning"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.20", "A.8.26"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -460,6 +471,7 @@ class ConfidentialVMsNotUsed(BaseCheck):
     service = "Security"
     service_category = ServiceCategory.SECURITY
     references = ["https://cloud.google.com/confidential-computing/confidential-vm/docs/about-cvm"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.24"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []

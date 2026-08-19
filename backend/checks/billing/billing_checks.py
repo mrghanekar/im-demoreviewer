@@ -4,7 +4,7 @@ Checks: BIL-001 through BIL-010
 """
 
 import logging
-from typing import Any
+from typing import Any, ClassVar
 
 from backend.checks.base import BaseCheck
 from backend.core.models import Category, CheckResult, Severity, ServiceCategory
@@ -69,6 +69,7 @@ class NoBudgetAlerts(BaseCheck):
     service = "Billing"
     service_category = ServiceCategory.BILLING
     references = ["https://cloud.google.com/billing/docs/how-to/budgets"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.16"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -114,6 +115,7 @@ class UnusedDisks(BaseCheck):
     service_category = ServiceCategory.BILLING
     fix_command_template = "gcloud compute disks delete {name} --zone={zone} --project={project_id} --quiet"
     references = ["https://cloud.google.com/compute/docs/disks"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -151,6 +153,7 @@ class UnusedStaticIPs(BaseCheck):
     service_category = ServiceCategory.BILLING
     fix_command_template = "gcloud compute addresses delete {name} --region={region} --project={project_id} --quiet"
     references = ["https://cloud.google.com/vpc/network-pricing#ipaddress"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -186,6 +189,7 @@ class OldSnapshots(BaseCheck):
     service = "Billing"
     service_category = ServiceCategory.BILLING
     references = ["https://cloud.google.com/compute/docs/disks/create-snapshots"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -236,6 +240,7 @@ class NoCommittedUseDiscounts(BaseCheck):
     service = "Billing"
     service_category = ServiceCategory.BILLING
     references = ["https://cloud.google.com/compute/docs/instances/committed-use-discounts-overview"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -268,6 +273,7 @@ class IdleVMs(BaseCheck):
     service = "Billing"
     service_category = ServiceCategory.BILLING
     references = ["https://cloud.google.com/compute/docs/instances/viewing-and-applying-idle-vm-recommendations"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -305,6 +311,7 @@ class OversizedVMs(BaseCheck):
     service = "Billing"
     service_category = ServiceCategory.BILLING
     references = ["https://cloud.google.com/compute/docs/instances/apply-machine-type-recommendations-for-instances"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -342,6 +349,7 @@ class NoLabelsOnResources(BaseCheck):
     service = "Billing"
     service_category = ServiceCategory.BILLING
     references = ["https://cloud.google.com/resource-manager/docs/creating-managing-labels"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -377,6 +385,7 @@ class StandardStorageForInfrequentData(BaseCheck):
     service = "Billing"
     service_category = ServiceCategory.BILLING
     references = ["https://cloud.google.com/storage/docs/storage-classes"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -415,6 +424,7 @@ class BillingExportNotConfigured(BaseCheck):
     service = "Billing"
     service_category = ServiceCategory.BILLING
     references = ["https://cloud.google.com/billing/docs/how-to/export-data-bigquery"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         # This is informational — we can't easily check billing export via gcloud
@@ -443,6 +453,7 @@ class BigQueryNoPhysicalBilling(BaseCheck):
     service = "Billing"
     service_category = ServiceCategory.BILLING
     references = ["https://cloud.google.com/bigquery/docs/datasets-intro#dataset_storage_billing_models"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -486,6 +497,7 @@ class IdleGKENodePool(BaseCheck):
     service = "Billing"
     service_category = ServiceCategory.BILLING
     references = ["https://cloud.google.com/kubernetes-engine/docs/concepts/cluster-autoscaler"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []

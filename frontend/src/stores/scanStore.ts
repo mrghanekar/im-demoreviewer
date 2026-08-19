@@ -80,6 +80,7 @@ export const useScanStore = create<ScanState>((set, get) => ({
     'cloud_run', 'cloud_functions', 'secret_manager', 'cloud_build',
     'memorystore', 'firestore', 'spanner', 'iap', 'composer', 'posture',
     'alloydb', 'app_engine', 'cloud_run_jobs',
+    'api_security', 'artifact_registry', 'patch_management', 'compliance',
   ],
   selectedProjects: [],
   currentScanId: null,

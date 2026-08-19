@@ -7,7 +7,7 @@ Checks: POST-001 through POST-005
 """
 
 import logging
-from typing import Any
+from typing import Any, ClassVar
 
 from backend.checks.base import BaseCheck
 from backend.core.models import Category, CheckResult, Severity, ServiceCategory
@@ -43,6 +43,7 @@ class MissingRecommendedOrgPolicies(BaseCheck):
     service = "Posture"
     service_category = ServiceCategory.POSTURE
     references = ["https://cloud.google.com/resource-manager/docs/organization-policy/org-policy-constraints"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.5.23", "A.8.9"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -81,6 +82,7 @@ class ProjectDirectlyUnderOrgNoFolder(BaseCheck):
     service = "Posture"
     service_category = ServiceCategory.POSTURE
     references = ["https://cloud.google.com/resource-manager/docs/cloud-platform-resource-hierarchy"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -112,6 +114,7 @@ class AssetFeedNotConfigured(BaseCheck):
     service = "Posture"
     service_category = ServiceCategory.POSTURE
     references = ["https://cloud.google.com/asset-inventory/docs/monitoring-asset-changes"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.9", "A.8.16"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -142,6 +145,7 @@ class RecommenderInsightsUnactioned(BaseCheck):
     service = "Posture"
     service_category = ServiceCategory.POSTURE
     references = ["https://cloud.google.com/recommender/docs/overview"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {}
 
     KEY_RECOMMENDERS = (
         "google.iam.policy.Recommender",
@@ -236,6 +240,7 @@ class EnabledApisWithNoResources(BaseCheck):
         "https://cloud.google.com/service-usage/docs/disable-service",
         "https://cloud.google.com/iam/docs/best-practices-service-accounts#disable-unused",
     ]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.9"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []

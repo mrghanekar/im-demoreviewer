@@ -4,7 +4,7 @@ Checks: CMP-001 through CMP-004
 """
 
 import logging
-from typing import Any
+from typing import Any, ClassVar
 
 from backend.checks.base import BaseCheck
 from backend.core.models import Category, CheckResult, Severity, ServiceCategory
@@ -36,6 +36,7 @@ class ComposerPublicEndpoint(BaseCheck):
     service = "Composer"
     service_category = ServiceCategory.COMPOSER
     references = ["https://cloud.google.com/composer/docs/composer-2/configure-private-ip"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.20", "A.8.21"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -64,6 +65,7 @@ class ComposerNoCMEK(BaseCheck):
     service = "Composer"
     service_category = ServiceCategory.COMPOSER
     references = ["https://cloud.google.com/composer/docs/composer-2/configure-cmek-encryption"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.24"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -91,6 +93,7 @@ class ComposerDeprecatedImage(BaseCheck):
     service = "Composer"
     service_category = ServiceCategory.COMPOSER
     references = ["https://cloud.google.com/composer/docs/concepts/versioning/composer-versions"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.8"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -118,6 +121,7 @@ class ComposerDefaultNetwork(BaseCheck):
     service = "Composer"
     service_category = ServiceCategory.COMPOSER
     references = ["https://cloud.google.com/composer/docs/composer-2/configure-shared-vpc"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.9", "A.8.22"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []

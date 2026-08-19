@@ -147,3 +147,40 @@ class TestEscape:
     def test_escape_ampersand(self):
         assert _escape("a & b") == "a &amp; b"
 
+
+
+class TestHtmlReportComplianceSection:
+    """The compliance regrouping as it reaches an actual exported report."""
+
+    def _scan_with_a_tagged_check(self) -> Scan:
+        from backend.checks.registry import get_all_checks
+        from backend.core.models import CheckExecution, CheckStatus
+
+        check = next(c for c in get_all_checks().values() if c.compliance_refs)
+        scan = _make_scan(findings_count=0)
+        scan.check_executions = [CheckExecution(
+            check_id=check.id,
+            check_title=check.title,
+            service_category=check.service_category,
+            status=CheckStatus.PASSED,
+        )]
+        return scan
+
+    def test_section_is_rendered_for_a_tagged_scan(self):
+        html = generate_html_report(self._scan_with_a_tagged_check())
+        assert "Compliance Mapping" in html
+
+    def test_section_is_absent_when_nothing_is_tagged(self):
+        """An empty compliance table would read as "no controls apply", which is a lie."""
+        html = generate_html_report(_make_scan())  # no check_executions at all
+        assert "Compliance Mapping" not in html
+
+    def test_report_survives_a_broken_compliance_section(self, monkeypatch):
+        """A bug in the compliance renderer must not cost the customer their report."""
+        def boom(*_args, **_kwargs):
+            raise RuntimeError("compliance renderer exploded")
+
+        monkeypatch.setattr("backend.utils.report_generator.render_compliance_html", boom)
+        html = generate_html_report(self._scan_with_a_tagged_check())
+        assert "DEMOCRATIZED REVIEWER" in html
+        assert "Compliance Mapping" not in html

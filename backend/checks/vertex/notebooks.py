@@ -4,7 +4,7 @@ Checks: VTX-001, VTX-002
 """
 
 import logging
-from typing import Any
+from typing import Any, ClassVar
 
 from backend.checks.base import BaseCheck
 from backend.core.models import Category, CheckResult, Severity, ServiceCategory
@@ -21,6 +21,7 @@ class NotebookPublicIP(BaseCheck):
     service = "Vertex AI"
     service_category = ServiceCategory.VERTEX_AI
     references = ["https://cloud.google.com/vertex-ai/docs/workbench/instances/configure-network"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.20"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -60,6 +61,7 @@ class NotebookDefaultSA(BaseCheck):
     service = "Vertex AI"
     service_category = ServiceCategory.VERTEX_AI
     references = ["https://cloud.google.com/vertex-ai/docs/general/custom-service-account"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.2", "A.8.3"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -131,6 +133,7 @@ class VertexEndpointNoCMEK(BaseCheck):
     service = "Vertex AI"
     service_category = ServiceCategory.VERTEX_AI
     references = ["https://cloud.google.com/vertex-ai/docs/general/cmek"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.24"], "DPDP": ["8(5)"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -163,6 +166,7 @@ class VertexTrainingJobPublicIP(BaseCheck):
     service = "Vertex AI"
     service_category = ServiceCategory.VERTEX_AI
     references = ["https://cloud.google.com/vertex-ai/docs/training/private-ip-network-access"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.20", "A.8.22"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []

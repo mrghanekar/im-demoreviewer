@@ -65,6 +65,11 @@ class ServiceCategory(StrEnum):
     ALLOYDB = "alloydb"
     APP_ENGINE = "app_engine"
     CLOUD_RUN_JOBS = "cloud_run_jobs"
+    # Audit-coverage additions (2026-08)
+    API_SECURITY = "api_security"
+    ARTIFACT_REGISTRY = "artifact_registry"
+    PATCH_MANAGEMENT = "patch_management"
+    COMPLIANCE = "compliance"
 
 
 class ScanStatus(StrEnum):
@@ -394,6 +399,10 @@ class CheckCatalogEntry(BaseModel):
     category: Category
     service: str
     service_category: ServiceCategory
+    compliance_refs: dict[str, list[str]] = Field(
+        default_factory=dict,
+        description="Control IDs this check provides evidence for, keyed by framework.",
+    )
 
 
 # ---------------------------------------------------------------------------

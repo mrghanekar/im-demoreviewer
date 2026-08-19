@@ -9,7 +9,7 @@ no retry policy, and plaintext secrets — mirroring CR-* but on the
 """
 
 import logging
-from typing import Any
+from typing import Any, ClassVar
 
 from backend.checks.base import BaseCheck
 from backend.core.models import Category, CheckResult, Severity, ServiceCategory
@@ -49,6 +49,7 @@ class CloudRunJobDefaultServiceAccount(BaseCheck):
     service = "Cloud Run Jobs"
     service_category = ServiceCategory.CLOUD_RUN_JOBS
     references = ["https://cloud.google.com/run/docs/configuring/service-accounts"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.2", "A.8.3"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -116,6 +117,7 @@ class CloudRunJobPlaintextSecrets(BaseCheck):
     service = "Cloud Run Jobs"
     service_category = ServiceCategory.CLOUD_RUN_JOBS
     references = ["https://cloud.google.com/run/docs/configuring/secrets"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.5.17", "A.8.24"]}
 
     _SECRET_KEYS = ("password", "secret", "token", "key", "credential", "api_key", "apikey")
 

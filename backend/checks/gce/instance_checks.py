@@ -4,7 +4,7 @@ Checks: GCE-001 through GCE-015
 """
 
 import logging
-from typing import Any
+from typing import Any, ClassVar
 
 from backend.checks.base import BaseCheck
 from backend.core.models import Category, CheckResult, Severity, ServiceCategory
@@ -23,6 +23,7 @@ class GCEPublicIP(BaseCheck):
     gcloud_command = "gcloud compute instances list --project={project_id} --format=json"
     fix_command_template = "gcloud compute instances delete-access-config {name} --access-config-name='External NAT' --zone={zone} --project={project_id}"
     references = ["https://cloud.google.com/compute/docs/ip-addresses/reserve-static-external-ip-address"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"CIS_GCP_V3": ["4.8"], "ISO_27001": ["A.8.20"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -61,6 +62,7 @@ class GCEDefaultServiceAccount(BaseCheck):
     service = "GCE"
     service_category = ServiceCategory.GCE
     references = ["https://cloud.google.com/compute/docs/access/service-accounts#default_service_account"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"CIS_GCP_V3": ["4.1"], "ISO_27001": ["A.5.16", "A.8.2"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -97,6 +99,7 @@ class GCEFullAPIAccess(BaseCheck):
     service = "GCE"
     service_category = ServiceCategory.GCE
     references = ["https://cloud.google.com/compute/docs/access/create-enable-service-accounts-for-instances"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"CIS_GCP_V3": ["4.2"], "ISO_27001": ["A.5.15", "A.8.2"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -133,6 +136,7 @@ class GCEShieldedVM(BaseCheck):
     service = "GCE"
     service_category = ServiceCategory.GCE
     references = ["https://cloud.google.com/compute/shielded-vm/docs/shielded-vm"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"CIS_GCP_V3": ["4.7"], "ISO_27001": ["A.8.9"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -168,6 +172,7 @@ class GCEDiskCMEK(BaseCheck):
     service = "GCE"
     service_category = ServiceCategory.GCE
     references = ["https://cloud.google.com/compute/docs/disks/customer-managed-encryption"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"CIS_GCP_V3": ["4.6"], "ISO_27001": ["A.8.24"], "DPDP": ["8(5)"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -201,6 +206,7 @@ class GCESerialPortEnabled(BaseCheck):
     service = "GCE"
     service_category = ServiceCategory.GCE
     references = ["https://cloud.google.com/compute/docs/troubleshooting/troubleshooting-using-serial-console"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.9"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -237,6 +243,7 @@ class GCEOSLogin(BaseCheck):
     service = "GCE"
     service_category = ServiceCategory.GCE
     references = ["https://cloud.google.com/compute/docs/instances/managing-instance-access"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"CIS_GCP_V3": ["4.4"], "ISO_27001": ["A.5.16", "A.8.5"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -274,6 +281,7 @@ class GCENoSnapshots(BaseCheck):
     service = "GCE"
     service_category = ServiceCategory.GCE
     references = ["https://cloud.google.com/compute/docs/disks/create-snapshots"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.13"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -302,6 +310,7 @@ class GCEIPForwarding(BaseCheck):
     service = "GCE"
     service_category = ServiceCategory.GCE
     references = ["https://cloud.google.com/vpc/docs/using-routes#canipforward"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"CIS_GCP_V3": ["4.5"], "ISO_27001": ["A.8.20"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -377,6 +386,7 @@ class GCEDeprecatedImages(BaseCheck):
     service_category = ServiceCategory.GCE
     gcloud_command = "gcloud compute instances list --format=json"
     references = ["https://cloud.google.com/compute/docs/images/create-delete-deprecate-images#deprecating_an_image"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.8"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         import asyncio
@@ -577,6 +587,7 @@ class GCESSHKeysInMetadata(BaseCheck):
     service = "GCE"
     service_category = ServiceCategory.GCE
     references = ["https://cloud.google.com/compute/docs/instances/adding-removing-ssh-keys"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"CIS_GCP_V3": ["4.3"], "ISO_27001": ["A.5.17", "A.8.5"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []

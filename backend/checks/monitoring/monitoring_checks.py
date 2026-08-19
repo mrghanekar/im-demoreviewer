@@ -4,7 +4,7 @@ Checks: MON-001 through MON-010
 """
 
 import logging
-from typing import Any
+from typing import Any, ClassVar
 
 from backend.checks.base import BaseCheck
 from backend.core.models import Category, CheckResult, Severity, ServiceCategory
@@ -28,6 +28,7 @@ class NoAlertPolicies(BaseCheck):
     service_category = ServiceCategory.MONITORING
     gcloud_command = "gcloud alpha monitoring policies list --project={project_id} --format=json"
     references = ["https://cloud.google.com/monitoring/alerts"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.16"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -66,6 +67,7 @@ class NoNotificationChannels(BaseCheck):
     service = "Monitoring"
     service_category = ServiceCategory.MONITORING
     references = ["https://cloud.google.com/monitoring/support/notification-options"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.16"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -103,6 +105,7 @@ class LogSinksNotConfigured(BaseCheck):
     service_category = ServiceCategory.MONITORING
     gcloud_command = "gcloud logging sinks list --project={project_id} --format=json"
     references = ["https://cloud.google.com/logging/docs/export"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"CIS_GCP_V3": ["2.2"], "ISO_27001": ["A.8.15"], "CERT_IN": ["VI"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -136,6 +139,7 @@ class UptimeChecksNotConfigured(BaseCheck):
     service = "Monitoring"
     service_category = ServiceCategory.MONITORING
     references = ["https://cloud.google.com/monitoring/uptime-checks"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.16"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -168,6 +172,7 @@ class LogRetentionDefault(BaseCheck):
     service = "Monitoring"
     service_category = ServiceCategory.MONITORING
     references = ["https://cloud.google.com/logging/docs/storage"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.15", "A.5.33"], "CERT_IN": ["VI"]}
 
     # Compliance threshold — buckets retaining fewer days than this are flagged.
     THRESHOLD_DAYS = 90
@@ -211,6 +216,7 @@ class CustomDashboardsNotConfigured(BaseCheck):
     service = "Monitoring"
     service_category = ServiceCategory.MONITORING
     references = ["https://cloud.google.com/monitoring/dashboards"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -241,6 +247,7 @@ class ErrorReportingNotUsed(BaseCheck):
     service_category = ServiceCategory.MONITORING
     fix_command_template = "gcloud services enable clouderrorreporting.googleapis.com --project={project_id}"
     references = ["https://cloud.google.com/error-reporting/docs/setup/compute-engine"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.16"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -273,6 +280,7 @@ class TraceNotEnabled(BaseCheck):
     service_category = ServiceCategory.MONITORING
     fix_command_template = "gcloud services enable cloudtrace.googleapis.com --project={project_id}"
     references = ["https://cloud.google.com/trace/docs/overview"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -309,6 +317,7 @@ class NoSLOsDefined(BaseCheck):
     service = "Monitoring"
     service_category = ServiceCategory.MONITORING
     references = ["https://cloud.google.com/monitoring/slo"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -351,6 +360,7 @@ class PublicLogSink(BaseCheck):
     service = "Monitoring"
     service_category = ServiceCategory.MONITORING
     references = ["https://cloud.google.com/logging/docs/export/configure_export_v2"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.15", "A.5.33"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []

@@ -5,7 +5,7 @@ Checks: SM-001 through SM-007
 
 import logging
 from datetime import datetime, timezone, timedelta
-from typing import Any
+from typing import Any, ClassVar
 
 from backend.checks.base import BaseCheck
 from backend.core.models import Category, CheckResult, Severity, ServiceCategory
@@ -38,6 +38,7 @@ class SecretNoRotation(BaseCheck):
     service_category = ServiceCategory.SECRET_MANAGER
     fix_command_template = "gcloud secrets update {name} --next-rotation-time=$(date -d '+30 days' --iso-8601=seconds) --rotation-period=2592000s --project={project_id}"
     references = ["https://cloud.google.com/secret-manager/docs/rotation-recommendations"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.5.17"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -66,6 +67,7 @@ class SecretPublicAccess(BaseCheck):
     service = "Secret Manager"
     service_category = ServiceCategory.SECRET_MANAGER
     references = ["https://cloud.google.com/secret-manager/docs/access-control"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.5.15", "A.8.3"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -102,6 +104,7 @@ class SecretNoCMEK(BaseCheck):
     service = "Secret Manager"
     service_category = ServiceCategory.SECRET_MANAGER
     references = ["https://cloud.google.com/secret-manager/docs/cmek"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.24"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -136,6 +139,7 @@ class SecretAutomaticReplicationGlobal(BaseCheck):
     service = "Secret Manager"
     service_category = ServiceCategory.SECRET_MANAGER
     references = ["https://cloud.google.com/secret-manager/docs/locations"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -162,6 +166,7 @@ class SecretManyVersions(BaseCheck):
     service = "Secret Manager"
     service_category = ServiceCategory.SECRET_MANAGER
     references = ["https://cloud.google.com/secret-manager/docs/managing-secret-versions"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.5.17"]}
 
     THRESHOLD = 10
 
@@ -199,6 +204,7 @@ class SecretLastUpdatedLongAgo(BaseCheck):
     service = "Secret Manager"
     service_category = ServiceCategory.SECRET_MANAGER
     references = ["https://cloud.google.com/secret-manager/docs/rotation-recommendations"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.5.17"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -251,6 +257,7 @@ class SecretNoLabels(BaseCheck):
     service = "Secret Manager"
     service_category = ServiceCategory.SECRET_MANAGER
     references = ["https://cloud.google.com/resource-manager/docs/creating-managing-labels"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {}
 
     REQUIRED_LABELS = ("owner", "env", "environment", "team")
 

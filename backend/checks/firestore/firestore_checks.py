@@ -4,7 +4,7 @@ Checks: FS-001 through FS-004
 """
 
 import logging
-from typing import Any
+from typing import Any, ClassVar
 
 from backend.checks.base import BaseCheck
 from backend.core.models import Category, CheckResult, Severity, ServiceCategory
@@ -37,6 +37,7 @@ class FirestoreNoPITR(BaseCheck):
     service_category = ServiceCategory.FIRESTORE
     fix_command_template = "gcloud firestore databases update --database={name} --enable-pitr --project={project_id}"
     references = ["https://cloud.google.com/firestore/docs/use-pitr"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.13", "A.5.29"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -64,6 +65,7 @@ class FirestoreNoBackupSchedule(BaseCheck):
     service = "Firestore"
     service_category = ServiceCategory.FIRESTORE
     references = ["https://cloud.google.com/firestore/docs/backups"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.13"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -97,6 +99,7 @@ class FirestoreNoDeleteProtection(BaseCheck):
     service_category = ServiceCategory.FIRESTORE
     fix_command_template = "gcloud firestore databases update --database={name} --delete-protection --project={project_id}"
     references = ["https://cloud.google.com/firestore/docs/manage-databases#delete-protection"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.10"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -124,6 +127,7 @@ class FirestoreNoCMEK(BaseCheck):
     service = "Firestore"
     service_category = ServiceCategory.FIRESTORE
     references = ["https://cloud.google.com/firestore/docs/cmek"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.24"], "DPDP": ["8(5)"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []

@@ -63,6 +63,15 @@ class BaseCheck(abc.ABC):
     # Example: ["run.googleapis.com"] for Cloud Run checks.
     required_apis: ClassVar[list[str]] = []
 
+    # Control IDs this check provides evidence for, keyed by framework.
+    # Example: {"CIS_GCP_V3": ["3.6"], "ISO_27001": ["A.8.20"]}
+    #
+    # This is what turns a list of findings into an audit deliverable: an
+    # assessor asks "show me your evidence for A.8.20", not "show me your
+    # firewall findings". Use the framework keys in
+    # backend.core.compliance.FRAMEWORKS so the report groups correctly.
+    compliance_refs: ClassVar[dict[str, list[str]]] = {}
+
     @abc.abstractmethod
     async def execute(
         self,
@@ -141,9 +150,9 @@ class BaseCheck(abc.ABC):
         except KeyError:
             return f"{base}?project={project_id}"
 
-    def to_catalog_entry(self) -> dict[str, str]:
+    def to_catalog_entry(self) -> dict[str, Any]:
         """Convert this check to a catalog entry for the checks listing API.
-        
+
         Returns:
             Dictionary suitable for CheckCatalogEntry model.
         """
@@ -155,6 +164,7 @@ class BaseCheck(abc.ABC):
             "category": self.category,
             "service": self.service,
             "service_category": self.service_category,
+            "compliance_refs": self.compliance_refs,
         }
 
     def __repr__(self) -> str:

@@ -2,8 +2,17 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Search, Loader2 } from 'lucide-react';
 import { fetchChecksCatalog } from '@/lib/api';
-import { SEVERITY_COLORS } from '@/lib/types';
+import { FRAMEWORK_LABELS, SEVERITY_COLORS } from '@/lib/types';
 import type { CheckCatalogEntry, Severity } from '@/lib/types';
+
+/** "ISO 27001 A.8.20, A.8.22" — one badge per framework a check maps to. */
+function complianceBadges(refs: Record<string, string[]> | undefined): string[] {
+  if (!refs) return [];
+  return Object.entries(refs).map(
+    ([framework, controls]) =>
+      `${FRAMEWORK_LABELS[framework] ?? framework} ${controls.join(', ')}`,
+  );
+}
 
 /**
  * Browse the live check catalog without starting a scan.
@@ -16,6 +25,7 @@ export function Catalog() {
   const [search, setSearch] = useState('');
   const [serviceFilter, setServiceFilter] = useState('');
   const [severityFilter, setSeverityFilter] = useState<Severity | ''>('');
+  const [frameworkFilter, setFrameworkFilter] = useState('');
 
   useEffect(() => {
     fetchChecksCatalog()
@@ -28,22 +38,35 @@ export function Catalog() {
     [entries],
   );
 
+  const frameworks = useMemo(
+    () =>
+      entries
+        ? [...new Set(entries.flatMap((e) => Object.keys(e.compliance_refs ?? {})))].sort()
+        : [],
+    [entries],
+  );
+
   const filtered = useMemo(() => {
     if (!entries) return [];
     let result = entries;
     if (serviceFilter) result = result.filter((e) => e.service === serviceFilter);
     if (severityFilter) result = result.filter((e) => e.severity === severityFilter);
+    if (frameworkFilter) {
+      result = result.filter((e) => frameworkFilter in (e.compliance_refs ?? {}));
+    }
     if (search) {
       const q = search.toLowerCase();
       result = result.filter(
         (e) =>
           e.id.toLowerCase().includes(q) ||
           e.title.toLowerCase().includes(q) ||
-          e.description.toLowerCase().includes(q),
+          e.description.toLowerCase().includes(q) ||
+          // So an auditor can search "A.8.20" and see every check behind it.
+          complianceBadges(e.compliance_refs).some((b) => b.toLowerCase().includes(q)),
       );
     }
     return result;
-  }, [entries, serviceFilter, severityFilter, search]);
+  }, [entries, serviceFilter, severityFilter, frameworkFilter, search]);
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
@@ -54,7 +77,9 @@ export function Catalog() {
       <h1 className="font-mono text-2xl text-[--color-text-primary] mb-2">Check Catalog</h1>
       <p className="text-sm text-[--color-text-secondary] mb-6">
         Live list of every check the scanner can run. Filter to confirm the tool
-        covers what you care about before starting a scan.
+        covers what you care about before starting a scan. Framework badges show
+        which control a check is evidence for — a passing check attests to the
+        technical configuration, not to certification.
       </p>
 
       {error && (
@@ -102,6 +127,20 @@ export function Catalog() {
                 <option key={s} value={s} className="bg-[#0d1117]">{s}</option>
               ))}
             </select>
+            {frameworks.length > 0 && (
+              <select
+                value={frameworkFilter}
+                onChange={(e) => setFrameworkFilter(e.target.value)}
+                className="rounded border border-[--color-border] bg-[--color-background] px-2 py-1.5 text-xs font-mono text-[--color-text-primary] focus:outline-none"
+              >
+                <option value="" className="bg-[#0d1117]">All frameworks</option>
+                {frameworks.map((f) => (
+                  <option key={f} value={f} className="bg-[#0d1117]">
+                    {FRAMEWORK_LABELS[f] ?? f}
+                  </option>
+                ))}
+              </select>
+            )}
             <span className="ml-auto text-xs font-mono text-[--color-text-muted]">
               {filtered.length} / {entries.length}
             </span>
@@ -127,6 +166,18 @@ export function Catalog() {
                     </div>
                     {c.description && (
                       <p className="text-xs text-[--color-text-secondary] mt-1">{c.description}</p>
+                    )}
+                    {complianceBadges(c.compliance_refs).length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        {complianceBadges(c.compliance_refs).map((badge) => (
+                          <span
+                            key={badge}
+                            className="rounded border border-[--color-border] px-1.5 py-0.5 text-[10px] font-mono text-[--color-text-muted]"
+                          >
+                            {badge}
+                          </span>
+                        ))}
+                      </div>
                     )}
                   </div>
                   <span className="rounded bg-[--color-background] px-2 py-0.5 text-[10px] font-mono text-[--color-text-muted] capitalize shrink-0">

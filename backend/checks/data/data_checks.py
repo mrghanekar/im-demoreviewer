@@ -4,7 +4,7 @@ Checks: DATA-001 through DATA-010
 """
 
 import logging
-from typing import Any
+from typing import Any, ClassVar
 
 from backend.checks.base import BaseCheck
 from backend.core.models import Category, CheckResult, Severity, ServiceCategory
@@ -22,6 +22,7 @@ class BQDatasetNoDefaultCMEK(BaseCheck):
     service_category = ServiceCategory.DATA
     gcloud_command = "bq ls --project_id={project_id} --format=json"
     references = ["https://cloud.google.com/bigquery/docs/customer-managed-encryption"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"CIS_GCP_V3": ["7.3"], "ISO_27001": ["A.8.24"], "DPDP": ["8(5)"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -64,6 +65,7 @@ class BQDatasetPublicAccess(BaseCheck):
     service = "BigQuery"
     service_category = ServiceCategory.DATA
     references = ["https://cloud.google.com/bigquery/docs/dataset-access-controls"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"CIS_GCP_V3": ["7.1"], "ISO_27001": ["A.5.15", "A.8.3"], "DPDP": ["8(5)"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -220,6 +222,7 @@ class PubSubNoEncryption(BaseCheck):
     service = "PubSub"
     service_category = ServiceCategory.DATA
     references = ["https://cloud.google.com/pubsub/docs/encryption"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.24"], "DPDP": ["8(5)"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -254,6 +257,7 @@ class DataflowNoRegionRestriction(BaseCheck):
     service = "Dataflow"
     service_category = ServiceCategory.DATA
     references = ["https://cloud.google.com/dataflow/docs/concepts/regional-endpoints"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"DPDP": ["16"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -321,6 +325,7 @@ class BQAuditLogging(BaseCheck):
     service = "BigQuery"
     service_category = ServiceCategory.DATA
     references = ["https://cloud.google.com/bigquery/docs/reference/auditlogs"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.15"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
@@ -446,6 +451,7 @@ class DataprocPublicCluster(BaseCheck):
     service = "Dataproc"
     service_category = ServiceCategory.DATA
     references = ["https://cloud.google.com/dataproc/docs/concepts/configuring-clusters/internal-ip"]
+    compliance_refs: ClassVar[dict[str, list[str]]] = {"ISO_27001": ["A.8.20"]}
 
     async def execute(self, project_id: str, gcloud_runner: Any) -> list[CheckResult]:
         findings: list[CheckResult] = []
