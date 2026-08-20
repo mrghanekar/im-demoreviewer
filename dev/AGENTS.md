@@ -19,9 +19,10 @@
 - All checks use viewer/reader IAM roles only.
 - Fix suggestions are output as copyable `gcloud` commands — they are NOT executed.
 
-### 2. gcloud-Only Execution
-- **Strictly** execute `gcloud` CLI commands via subprocess to gather data.
-- Do NOT use `google-cloud-*` Python SDK libraries. This keeps the image small and the architecture simple.
+### 2. gcloud-First Execution
+- **Strictly** execute `gcloud` CLI commands via subprocess to gather check data.
+- Commands run through `create_subprocess_exec` (argv list) — **never** through a shell. Do not build shell command strings or reintroduce `create_subprocess_shell`; that path enabled command injection and was removed in 2026-08 (see `backend/core/gcloud_runner.py`).
+- `google-cloud-*` SDK libraries are allowed ONLY where gcloud can't do the job: GCS report export (`google-cloud-storage`), project enumeration (`google-cloud-resource-manager`), and Gemini explanations (`google-cloud-aiplatform`). Checks themselves must stay gcloud-based.
 - Always log the exact `gcloud` command executed for transparency.
 - Parse JSON output (`--format=json`) from gcloud commands.
 
@@ -100,8 +101,11 @@ backend/
 │   ├── base.py             # BaseCheck class — READ THIS FIRST
 │   ├── registry.py         # Auto-discovery — don't modify unless adding features
 │   └── {service}/          # Check modules grouped by GCP service
-├── utils/                  # Shared utilities — keep thin
-└── tests/                  # Mirror the source structure
+└── utils/                  # Shared utilities — keep thin
+
+dev/tests/                  # Pytest suite — mirrors the backend structure
+                            # (lives outside backend/; pytest.ini at repo root
+                            # sets testpaths + pythonpath)
 
 frontend/src/
 ├── components/ui/          # shadcn/ui primitives — don't modify
@@ -208,7 +212,7 @@ class MyNewCheck(BaseCheck):
 
 ### Step 2: Write tests
 
-Create `tests/backend/test_checks/test_{service}_{check_name}.py`:
+Create `dev/tests/backend/test_checks/test_{service}.py` (or add to the existing per-service test module):
 
 ```python
 """Tests for {SERVICE}-{NUMBER}: {title}."""
@@ -264,11 +268,11 @@ No manual registration is needed.
 ### Running locally
 
 ```bash
-cd backend
+# From the repo root (the app is imported as the `backend` package)
 python -m venv .venv
 source .venv/bin/activate   # or .venv\Scripts\activate on Windows
-pip install -r requirements.txt
-uvicorn main:app --reload --port 8080
+pip install -r backend/requirements.txt
+python -m uvicorn backend.main:app --reload --port 8080
 ```
 
 ### Key files to understand first
@@ -393,11 +397,13 @@ This tool is built to be handed to customers by Google Cloud engineers. The depl
 ### Backend tests
 
 ```bash
-cd backend
-pytest -v --cov=backend
+# From the repo root — pytest.ini sets testpaths (dev/tests) and pythonpath
+.venv/bin/python -m pytest
+# with coverage:
+.venv/bin/python -m pytest --cov=backend
 ```
 
-- Use `pytest` with `pytest-asyncio` for async tests
+- Use `pytest` with `pytest-asyncio` for async tests (asyncio_mode = auto)
 - Mock all GCP API calls — never make real API calls in tests
 - Use fixtures for common resources (compliant/non-compliant)
 - Test both the check logic AND the fix command output

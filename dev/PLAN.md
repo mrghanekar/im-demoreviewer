@@ -1,8 +1,43 @@
 # Democratized Reviewer — Build Plan
 
-> **Version**: 1.0  
-> **Last Updated**: 2026-02-07  
-> **Approach**: Phased, vertical slices — each phase delivers a working increment
+> **Version**: 2.0  
+> **Last Updated**: 2026-08-20  
+> **Approach**: Phased, vertical slices — each phase delivers a working increment  
+> **Status**: v1 shipped — Phases 0–5 complete; Phase 6 hardening largely complete
+
+---
+
+## Status (2026-08-20)
+
+All v1 phases (0–5) are shipped. This document is kept as the historical build
+plan; the checkboxes below reflect what was actually delivered. For the current
+feature set, see `README.md` and `docs/audit-coverage.md`.
+
+Where the implementation went beyond this plan:
+
+- **Check catalog**: 234 checks across 28 service categories (plan targeted
+  125+ across 10). Added categories include Cloud Run (+ Jobs), Cloud
+  Functions, App Engine, Secret Manager, Cloud Build, Artifact Registry,
+  Memorystore, Firestore, Spanner, AlloyDB, IAP, Composer, Vertex AI,
+  API Security, Patch Management, Compliance & Residency, and org-level
+  Architecture Posture.
+- **Compliance mapping** (a v2 stretch goal): every check is tagged with the
+  controls it evidences — CIS GCP Foundation v3.0, ISO/IEC 27001:2022,
+  CERT-In Directions 2022, DPDP Act 2023 — with a per-control report view
+  and `GET /scans/{id}/compliance` endpoint.
+- **Exports**: JSON, CSV, HTML, and PDF (plan targeted JSON + HTML), plus
+  GCS upload.
+- **AI explanations**: per-finding explanations via Vertex AI Gemini.
+- **Hardening (2026-08-19)**: closed command-injection paths into the gcloud
+  runner (now `create_subprocess_exec`, never a shell), fixed exfiltration /
+  rate-limit-bypass / billed-endpoint issues, made permission-denied checks
+  report ERRORED instead of PASSED, made scan cancellation actually cancel,
+  fixed the WebSocket lifecycle (scans no longer silently degrade to
+  polling), and brought the test suite to 910 passing tests.
+
+Remaining open items are the unticked boxes in Phase 6 (CSRF protection,
+error tracking/alerting, memory profiling, performance benchmarking) and the
+v2 stretch goals.
 
 ---
 
@@ -19,8 +54,8 @@ Each phase produces a **deployable, testable artifact**. We build vertically (on
 ### Tasks
 
 #### 0.1 Backend Scaffolding
-- [ ] Create `backend/` directory structure per PRD
-- [ ] Initialize `requirements.txt` with pinned dependencies:
+- [x] Create `backend/` directory structure per PRD
+- [x] Initialize `requirements.txt` with pinned dependencies:
   ```
   fastapi==0.115.*
   uvicorn[standard]==0.34.*
@@ -33,20 +68,20 @@ Each phase produces a **deployable, testable artifact**. We build vertically (on
   httpx==0.28.*
   python-dotenv==1.*
   ```
-- [ ] Create `backend/main.py` — FastAPI app factory with CORS, static files, health check
-- [ ] Create `backend/config.py` — Settings via environment variables (Pydantic BaseSettings)
-- [ ] Create `backend/api/routes/health.py` — `GET /api/v1/health` returns `{"status": "ok"}`
-- [ ] Create `backend/core/models.py` — All Pydantic models (Scan, Finding, CheckResult, Summary, Severity enum, Category enum)
-- [ ] Create `backend/checks/base.py` — `BaseCheck` abstract class with `execute()` method
-- [ ] Create `backend/checks/registry.py` — Auto-discovery of checks via module inspection
-- [ ] Create `backend/core/gcloud_runner.py` — Async subprocess wrapper for `gcloud` commands
-- [ ] Create `backend/core/api_client.py` — Google Cloud SDK client wrapper (fallback)
-- [ ] Create `backend/core/engine.py` — Check execution engine (run checks in parallel, collect results)
-- [ ] Create `backend/core/scanner.py` — Scan orchestrator (manages scan lifecycle)
+- [x] Create `backend/main.py` — FastAPI app factory with CORS, static files, health check
+- [x] Create `backend/config.py` — Settings via environment variables (Pydantic BaseSettings)
+- [x] Create `backend/api/routes/health.py` — `GET /api/v1/health` returns `{"status": "ok"}`
+- [x] Create `backend/core/models.py` — All Pydantic models (Scan, Finding, CheckResult, Summary, Severity enum, Category enum)
+- [x] Create `backend/checks/base.py` — `BaseCheck` abstract class with `execute()` method
+- [x] Create `backend/checks/registry.py` — Auto-discovery of checks via module inspection
+- [x] Create `backend/core/gcloud_runner.py` — Async subprocess wrapper for `gcloud` commands
+- [x] Create `backend/core/api_client.py` — Google Cloud SDK client wrapper (fallback)
+- [x] Create `backend/core/engine.py` — Check execution engine (run checks in parallel, collect results)
+- [x] Create `backend/core/scanner.py` — Scan orchestrator (manages scan lifecycle)
 
 #### 0.2 Frontend Scaffolding
-- [ ] Initialize React project: `npm create vite@latest frontend -- --template react-ts`
-- [ ] Install dependencies:
+- [x] Initialize React project: `npm create vite@latest frontend -- --template react-ts`
+- [x] Install dependencies:
   ```
   tailwindcss @tailwindcss/vite
   react-router-dom
@@ -57,29 +92,29 @@ Each phase produces a **deployable, testable artifact**. We build vertically (on
   lucide-react
   clsx tailwind-merge
   ```
-- [ ] Configure Tailwind with custom dark theme tokens from PRD
-- [ ] Install and configure shadcn/ui (button, card, badge, dialog, tabs, table, etc.)
-- [ ] Create `frontend/src/lib/types.ts` — TypeScript interfaces matching backend models
-- [ ] Create `frontend/src/lib/api.ts` — Fetch wrapper for backend API
-- [ ] Create `frontend/src/stores/scanStore.ts` — Zustand store skeleton
-- [ ] Create `frontend/src/App.tsx` — Router with placeholder pages
-- [ ] Create layout components: `Header.tsx`, `Sidebar.tsx`, shell layout
-- [ ] Create placeholder pages: Home, Scan, Results, Export
-- [ ] Apply dark theme globally (`index.css` + Tailwind config)
+- [x] Configure Tailwind with custom dark theme tokens from PRD
+- [x] Install and configure shadcn/ui (button, card, badge, dialog, tabs, table, etc.)
+- [x] Create `frontend/src/lib/types.ts` — TypeScript interfaces matching backend models
+- [x] Create `frontend/src/lib/api.ts` — Fetch wrapper for backend API
+- [x] Create `frontend/src/stores/scanStore.ts` — Zustand store skeleton
+- [x] Create `frontend/src/App.tsx` — Router with placeholder pages
+- [x] Create layout components: `Header.tsx`, `Sidebar.tsx`, shell layout
+- [x] Create placeholder pages: Home, Scan, Results, Export
+- [x] Apply dark theme globally (`index.css` + Tailwind config)
 
 #### 0.3 Docker & DevOps
-- [ ] Create `Dockerfile` — Multi-stage build (Node → Python)
-- [ ] Create `docker-compose.yml` — Local dev with hot reload
-- [ ] Create `.dockerignore`
-- [ ] Create `.env.example` — Document all environment variables
-- [ ] Verify `docker build` and `docker run` work end-to-end
-- [ ] Verify FastAPI serves both API and React static files
+- [x] Create `Dockerfile` — Multi-stage build (Node → Python)
+- [x] Create `docker-compose.yml` — Local dev with hot reload
+- [x] Create `.dockerignore`
+- [x] Create `.env.example` — Document all environment variables
+- [x] Verify `docker build` and `docker run` work end-to-end
+- [x] Verify FastAPI serves both API and React static files
 
 #### 0.4 Testing Setup
-- [ ] Backend: `pytest` + `pytest-asyncio` + `pytest-cov` configured
-- [ ] Create `tests/conftest.py` with shared fixtures
-- [ ] Frontend: Vitest configured in `vite.config.ts`
-- [ ] Verify `pytest` and `npm test` both pass (with placeholder tests)
+- [x] Backend: `pytest` + `pytest-asyncio` + `pytest-cov` configured
+- [x] Create `tests/conftest.py` with shared fixtures
+- [x] Frontend: Vitest configured in `vite.config.ts`
+- [x] Verify `pytest` and `npm test` both pass (with placeholder tests)
 
 ### Definition of Done
 - `docker-compose up` serves React UI at `/` and FastAPI at `/api/v1/health`
@@ -95,38 +130,38 @@ Each phase produces a **deployable, testable artifact**. We build vertically (on
 ### Tasks
 
 #### 1.1 Backend — Setup API
-- [ ] `GET /api/v1/setup/service-account` — Return current SA email, project, roles
+- [x] `GET /api/v1/setup/service-account` — Return current SA email, project, roles
   - Uses `gcloud auth list --format=json` to detect active account
   - Uses `gcloud projects get-iam-policy {project} --format=json` to list roles
-- [ ] `GET /api/v1/setup/projects` — List accessible projects
+- [x] `GET /api/v1/setup/projects` — List accessible projects
   - Uses `gcloud projects list --format=json`
   - For org scope: `gcloud projects list --filter="parent.id={org_id}" --format=json`
-- [ ] `GET /api/v1/setup/validate` — Pre-flight permission check
+- [x] `GET /api/v1/setup/validate` — Pre-flight permission check
   - Checks each required role exists for the SA
   - Returns `{ "valid": bool, "missing_roles": [...], "granted_roles": [...] }`
-- [ ] `GET /api/v1/setup/organizations` — List accessible orgs
+- [x] `GET /api/v1/setup/organizations` — List accessible orgs
   - Uses `gcloud organizations list --format=json`
 
 #### 1.2 Frontend — Wizard UI
-- [ ] **Home Page**: Landing with logo, tagline, "Start Review" CTA button
+- [x] **Home Page**: Landing with logo, tagline, "Start Review" CTA button
   - Matrix/terminal-style animated background (subtle)
   - ASCII art or SVG logo
-- [ ] **Wizard Step 1 — Scope Selection**:
+- [x] **Wizard Step 1 — Scope Selection**:
   - Toggle: "Organization" vs "Project"
   - If org: dropdown of available orgs (from API)
   - If project: dropdown of available projects (from API)
   - Search/filter on dropdowns
-- [ ] **Wizard Step 2 — Identity Confirmation**:
+- [x] **Wizard Step 2 — Identity Confirmation**:
   - Display current SA email and its roles
   - Green checkmarks for granted roles, red X for missing
   - "Re-validate" button
   - Warning banner if roles are missing (with `gcloud` commands to fix)
-- [ ] **Wizard Step 3 — Category Selection**:
+- [x] **Wizard Step 3 — Category Selection**:
   - Grid of category cards (GKE, GCE, GCS, etc.) with icons
   - Select all / deselect all toggle
   - Each card shows estimated check count
   - "Select All" is default
-- [ ] **Wizard Step 4 — Confirmation & Launch**:
+- [x] **Wizard Step 4 — Confirmation & Launch**:
   - Summary of selections
   - "Start Scan" button with loading state
   - Redirects to scan progress page
@@ -146,48 +181,48 @@ Each phase produces a **deployable, testable artifact**. We build vertically (on
 ### Tasks
 
 #### 2.1 Check Engine Core
-- [ ] Finalize `BaseCheck` with all helper methods:
+- [x] Finalize `BaseCheck` with all helper methods:
   - `run_gcloud(cmd)` — async subprocess, returns parsed JSON
   - `run_api(method, **kwargs)` — SDK client fallback
   - `_console_link(resource)` — builds Cloud Console URL
   - `_build_fix_command(resource)` — template-based fix command
-- [ ] `engine.py` — Run checks in parallel with concurrency limit (asyncio.Semaphore)
+- [x] `engine.py` — Run checks in parallel with concurrency limit (asyncio.Semaphore)
   - Collect results as they complete
   - Handle individual check failures gracefully
   - Emit progress events
-- [ ] `scanner.py` — Full scan lifecycle:
+- [x] `scanner.py` — Full scan lifecycle:
   - Create scan record → enumerate projects (if org) → run engine per project → aggregate results → compute summary
   - WebSocket event emission for real-time progress
-- [ ] Resource caching layer:
+- [x] Resource caching layer:
   - If multiple checks need `gcloud compute instances list`, cache the result
   - Cache keyed by (project_id, gcloud_command)
   - Cache lives only within a single scan session
 
 #### 2.2 Scan API
-- [ ] `POST /api/v1/scans` — Start a new scan
+- [x] `POST /api/v1/scans` — Start a new scan
   - Body: `{ scope, target_id, categories[] }`
   - Returns scan ID, starts scan in background
-- [ ] `GET /api/v1/scans/{scan_id}` — Get scan status
-- [ ] `GET /api/v1/scans/{scan_id}/findings` — Get findings (with filters)
-- [ ] `GET /api/v1/scans/{scan_id}/summary` — Get summary stats
-- [ ] `WS /api/v1/scans/{scan_id}/stream` — WebSocket for live progress
+- [x] `GET /api/v1/scans/{scan_id}` — Get scan status
+- [x] `GET /api/v1/scans/{scan_id}/findings` — Get findings (with filters)
+- [x] `GET /api/v1/scans/{scan_id}/summary` — Get summary stats
+- [x] `WS /api/v1/scans/{scan_id}/stream` — WebSocket for live progress
   - Events: `check_started`, `check_completed`, `finding_discovered`, `scan_completed`
 
 #### 2.3 IAM Checks (12 checks)
 Priority service — affects all other services, richest findings.
 
-- [ ] `IAM-001`: Primitive roles (Owner/Editor) in use
-- [ ] `IAM-002`: Service account keys older than 90 days
-- [ ] `IAM-003`: User-managed SA keys exist
-- [ ] `IAM-004`: Over-permissioned service accounts
-- [ ] `IAM-005`: SA impersonation not used
-- [ ] `IAM-006`: No org-level IAM audit
-- [ ] `IAM-007`: Unused service accounts (90+ days)
-- [ ] `IAM-008`: External members in IAM bindings
-- [ ] `IAM-009`: allUsers/allAuthenticatedUsers in bindings
-- [ ] `IAM-010`: No custom roles
-- [ ] `IAM-011`: Workload Identity Federation not used
-- [ ] `IAM-012`: Domain-restricted sharing not enforced
+- [x] `IAM-001`: Primitive roles (Owner/Editor) in use
+- [x] `IAM-002`: Service account keys older than 90 days
+- [x] `IAM-003`: User-managed SA keys exist
+- [x] `IAM-004`: Over-permissioned service accounts
+- [x] `IAM-005`: SA impersonation not used
+- [x] `IAM-006`: No org-level IAM audit
+- [x] `IAM-007`: Unused service accounts (90+ days)
+- [x] `IAM-008`: External members in IAM bindings
+- [x] `IAM-009`: allUsers/allAuthenticatedUsers in bindings
+- [x] `IAM-010`: No custom roles
+- [x] `IAM-011`: Workload Identity Federation not used
+- [x] `IAM-012`: Domain-restricted sharing not enforced
 
 Implementation approach per check:
 ```
@@ -197,7 +232,7 @@ gcloud iam service-accounts keys list --iam-account={sa} --format=json
 ```
 
 #### 2.4 Security Checks (10 checks)
-- [ ] `SEC-001` through `SEC-010` (see PRD for full list)
+- [x] `SEC-001` through `SEC-010` (see PRD for full list)
 
 Implementation approach:
 ```
@@ -207,7 +242,7 @@ gcloud kms keys list --keyring={kr} --location={loc} --format=json
 ```
 
 #### 2.5 GCS Checks (10 checks)
-- [ ] `GCS-001` through `GCS-010` (see PRD for full list)
+- [x] `GCS-001` through `GCS-010` (see PRD for full list)
 
 Implementation approach:
 ```
@@ -217,10 +252,10 @@ gcloud storage buckets get-iam-policy gs://{bucket} --format=json
 ```
 
 #### 2.6 Tests for Phase 2
-- [ ] Unit tests for each check with mock gcloud output
-- [ ] Integration test: run engine with mock checks, verify parallel execution
-- [ ] Integration test: scan lifecycle (create → run → complete)
-- [ ] WebSocket test: verify event stream
+- [x] Unit tests for each check with mock gcloud output
+- [x] Integration test: run engine with mock checks, verify parallel execution
+- [x] Integration test: scan lifecycle (create → run → complete)
+- [x] WebSocket test: verify event stream
 
 ### Definition of Done
 - Running a scan executes 32 real checks (IAM + Security + GCS)
@@ -237,21 +272,21 @@ gcloud storage buckets get-iam-policy gs://{bucket} --format=json
 ### Tasks
 
 #### 3.1 Scan Progress Page
-- [ ] Terminal-style log output panel (auto-scrolling, monospace)
+- [x] Terminal-style log output panel (auto-scrolling, monospace)
   - Shows `gcloud` commands being executed
   - Shows check names as they start/complete
   - Color-coded: green=pass, red=fail, yellow=error
-- [ ] Category progress bars (one per selected category)
-- [ ] Overall progress ring (percentage)
-- [ ] Live finding counter badges (Critical: X, High: Y, ...)
-- [ ] "Cancel Scan" button
+- [x] Category progress bars (one per selected category)
+- [x] Overall progress ring (percentage)
+- [x] Live finding counter badges (Critical: X, High: Y, ...)
+- [x] "Cancel Scan" button
 
 #### 3.2 Results Dashboard
-- [ ] **Top summary bar**: Scan scope, duration, total findings, health score/grade
-- [ ] **Severity donut chart** (Recharts): Interactive, click to filter
-- [ ] **Category bar chart**: Findings per service category
-- [ ] **Health score badge**: Large, centered, letter grade (A-F) with color
-- [ ] **Findings table**: Full-featured data table
+- [x] **Top summary bar**: Scan scope, duration, total findings, health score/grade
+- [x] **Severity donut chart** (Recharts): Interactive, click to filter
+- [x] **Category bar chart**: Findings per service category
+- [x] **Health score badge**: Large, centered, letter grade (A-F) with color
+- [x] **Findings table**: Full-featured data table
   - Columns: Severity (icon) | Check ID | Title | Resource | Service | Category
   - Sortable by any column
   - Filterable by severity, category, service
@@ -260,18 +295,18 @@ gcloud storage buckets get-iam-policy gs://{bucket} --format=json
   - Row click → expand or navigate to detail
 
 #### 3.3 Finding Detail View
-- [ ] Slide-out panel (or dedicated route)
-- [ ] Severity badge with color and icon
-- [ ] Full description (markdown rendered)
-- [ ] "Current State" vs "Recommended State" — side-by-side diff style
-- [ ] Fix command in syntax-highlighted code block
+- [x] Slide-out panel (or dedicated route)
+- [x] Severity badge with color and icon
+- [x] Full description (markdown rendered)
+- [x] "Current State" vs "Recommended State" — side-by-side diff style
+- [x] Fix command in syntax-highlighted code block
   - Copy button (copies to clipboard)
   - "Open in Cloud Shell" link (generates Cloud Shell URL)
-- [ ] Resource link → opens in Cloud Console (new tab)
-- [ ] Related documentation links
+- [x] Resource link → opens in Cloud Console (new tab)
+- [x] Related documentation links
 
 #### 3.4 GKE Checks (20 checks)
-- [ ] `GKE-001` through `GKE-020` (see PRD for full list)
+- [x] `GKE-001` through `GKE-020` (see PRD for full list)
 
 Implementation approach:
 ```
@@ -281,7 +316,7 @@ gcloud container node-pools list --cluster={cluster} --zone={zone} --format=json
 ```
 
 #### 3.5 GCE Checks (15 checks)
-- [ ] `GCE-001` through `GCE-015` (see PRD for full list)
+- [x] `GCE-001` through `GCE-015` (see PRD for full list)
 
 Implementation approach:
 ```
@@ -291,7 +326,7 @@ gcloud compute project-info describe --project={project} --format=json
 ```
 
 #### 3.6 Networking Checks (13 checks)
-- [ ] `NET-001` through `NET-013` (see PRD for full list)
+- [x] `NET-001` through `NET-013` (see PRD for full list)
 
 Implementation approach:
 ```
@@ -302,7 +337,7 @@ gcloud dns managed-zones list --project={project} --format=json
 ```
 
 #### 3.7 Database Checks (15 checks)
-- [ ] `DB-001` through `DB-015` (see PRD for full list)
+- [x] `DB-001` through `DB-015` (see PRD for full list)
 
 Implementation approach:
 ```
@@ -313,7 +348,7 @@ gcloud firestore databases list --project={project} --format=json
 ```
 
 #### 3.8 Monitoring Checks (10 checks)
-- [ ] `MON-001` through `MON-010` (see PRD for full list)
+- [x] `MON-001` through `MON-010` (see PRD for full list)
 
 Implementation approach:
 ```
@@ -323,9 +358,9 @@ gcloud alpha monitoring channels list --project={project} --format=json
 ```
 
 #### 3.9 Tests for Phase 3
-- [ ] Unit tests for all new checks (65 checks)
-- [ ] Frontend component tests (dashboard, charts, finding detail)
-- [ ] Integration test: full scan with all categories
+- [x] Unit tests for all new checks (65 checks)
+- [x] Frontend component tests (dashboard, charts, finding detail)
+- [x] Integration test: full scan with all categories
 
 ### Definition of Done
 - Dashboard shows rich, interactive results for 97 checks
@@ -344,7 +379,7 @@ gcloud alpha monitoring channels list --project={project} --format=json
 #### 4.1 Remaining Checks
 
 ##### Data Services Checks (10 checks)
-- [ ] `DATA-001` through `DATA-010` (see PRD for full list)
+- [x] `DATA-001` through `DATA-010` (see PRD for full list)
 
 ```
 bq ls --project_id={project} --format=json
@@ -353,7 +388,7 @@ gcloud dataflow jobs list --project={project} --format=json
 ```
 
 ##### Billing Checks (10 checks)
-- [ ] `BIL-001` through `BIL-010` (see PRD for full list)
+- [x] `BIL-001` through `BIL-010` (see PRD for full list)
 
 ```
 gcloud billing budgets list --billing-account={account} --format=json
@@ -362,19 +397,19 @@ gcloud compute disks list --project={project} --filter="-users:*" --format=json
 ```
 
 #### 4.2 Export System
-- [ ] `POST /api/v1/scans/{scan_id}/export` — Export to GCS
+- [x] `POST /api/v1/scans/{scan_id}/export` — Export to GCS
   - Uploads `summary.json`, `findings.json`, `report.html` to configured bucket
   - Returns GCS URIs
-- [ ] `GET /api/v1/scans/{scan_id}/export/json` — Download JSON locally
-- [ ] `GET /api/v1/scans/{scan_id}/export/html` — Download HTML report
-- [ ] HTML report generator:
+- [x] `GET /api/v1/scans/{scan_id}/export/json` — Download JSON locally
+- [x] `GET /api/v1/scans/{scan_id}/export/html` — Download HTML report
+- [x] HTML report generator:
   - Self-contained HTML with embedded CSS
   - Executive summary with health score
   - Severity breakdown chart (inline SVG)
   - Full findings table with expandable details
   - Fix commands included
   - Print-friendly styling
-- [ ] **Export UI page**:
+- [x] **Export UI page**:
   - Format selection (JSON / HTML)
   - GCS bucket input (optional)
   - Download button
@@ -382,32 +417,32 @@ gcloud compute disks list --project={project} --filter="-users:*" --format=json
   - "View in GCS" link after export
 
 #### 4.3 Health Score
-- [ ] Implement scoring algorithm:
+- [x] Implement scoring algorithm:
   ```
   Score = 100 - (Critical × 10) - (High × 5) - (Medium × 2) - (Low × 0.5)
   Minimum: 0
   Grade: A (90-100), B (80-89), C (70-79), D (60-69), F (<60)
   ```
-- [ ] Score breakdown panel showing point deductions
-- [ ] Score comparison callout ("X critical findings are costing you Y points")
+- [x] Score breakdown panel showing point deductions
+- [x] Score comparison callout ("X critical findings are costing you Y points")
 
 #### 4.4 UI Polish
-- [ ] Loading skeletons on all data-fetching components
-- [ ] Error boundaries with retry buttons
-- [ ] Empty states ("No findings — your cloud is clean!")
-- [ ] Responsive layout adjustments (tablet/desktop)
-- [ ] Keyboard navigation (Tab, Enter, Escape)
-- [ ] Toast notifications (scan started, scan complete, export done)
-- [ ] Animated transitions between wizard steps
-- [ ] Animated scan progress (pulse effects, count-up numbers)
-- [ ] Favicon and meta tags
-- [ ] 404 page
+- [x] Loading skeletons on all data-fetching components
+- [x] Error boundaries with retry buttons
+- [x] Empty states ("No findings — your cloud is clean!")
+- [x] Responsive layout adjustments (tablet/desktop)
+- [x] Keyboard navigation (Tab, Enter, Escape)
+- [x] Toast notifications (scan started, scan complete, export done)
+- [x] Animated transitions between wizard steps
+- [x] Animated scan progress (pulse effects, count-up numbers)
+- [x] Favicon and meta tags
+- [x] 404 page
 
 #### 4.5 Tests for Phase 4
-- [ ] Unit tests for remaining 20 checks
-- [ ] Export tests (JSON generation, HTML generation, GCS upload)
-- [ ] Full E2E test: wizard → scan → results → export
-- [ ] Health score calculation tests
+- [x] Unit tests for remaining 20 checks
+- [x] Export tests (JSON generation, HTML generation, GCS upload)
+- [x] Full E2E test: wizard → scan → results → export
+- [x] Health score calculation tests
 
 ### Definition of Done
 - All 125+ checks across 10 categories are implemented
@@ -461,18 +496,16 @@ gcloud compute disks list --project={project} --filter="-users:*" --format=json
   - **Restore Org Policy** if overridden [NEW]
 
 #### 5.3 Cloud Shell Testing
-
-#### 5.3 Cloud Shell Testing
-- [ ] Test `setup.sh` in fresh Cloud Shell environment
-- [ ] Test with org-level scope
-- [ ] Test with project-level scope
-- [ ] Test with existing SA
-- [ ] Test with new SA creation
-- [ ] Test idempotency (run setup.sh twice)
-- [ ] Test error recovery (interrupt mid-setup, re-run)
+- [x] Test `setup.sh` in fresh Cloud Shell environment
+- [x] Test with org-level scope
+- [x] Test with project-level scope
+- [x] Test with existing SA
+- [x] Test with new SA creation
+- [x] Test idempotency (run setup.sh twice)
+- [x] Test error recovery (interrupt mid-setup, re-run)
 
 #### 5.4 Documentation
-- [ ] Rewrite `README.md`:
+- [x] Rewrite `README.md`:
   - Project description and screenshot
   - Quick start (3 commands)
   - Prerequisites
@@ -480,7 +513,7 @@ gcloud compute disks list --project={project} --filter="-users:*" --format=json
   - Architecture diagram
   - Contributing guide
   - License
-- [ ] Add `CONTRIBUTING.md` with check authoring guide
+- [x] Add `CONTRIBUTING.md` with check authoring guide
 
 ### Definition of Done
 - `./setup.sh` deploys working tool to Cloud Run in < 10 minutes
@@ -497,23 +530,23 @@ gcloud compute disks list --project={project} --filter="-users:*" --format=json
 ### Tasks
 
 #### 6.1 Hardening
-- [ ] Rate limiting on API endpoints
-- [ ] Input validation on all user inputs (project IDs, org IDs)
+- [x] Rate limiting on API endpoints
+- [x] Input validation on all user inputs (project IDs, org IDs)
 - [ ] CSRF protection for Cloud Run deployment
-- [ ] Content Security Policy headers
-- [ ] Structured JSON logging (Cloud Logging compatible)
+- [x] Content Security Policy headers
+- [x] Structured JSON logging (Cloud Logging compatible)
 - [ ] Error tracking and alerting
-- [ ] Graceful shutdown handling
+- [x] Graceful shutdown handling
 - [ ] Memory profiling — ensure large scans don't OOM
 
 #### 6.2 Performance
 - [ ] Benchmark scan time per category
 - [ ] Optimize slowest checks (identify bottlenecks)
 - [ ] Implement resource list caching aggressively
-- [ ] Consider Cloud Run min-instances for zero cold start
+- [x] Consider Cloud Run min-instances for zero cold start
 
 #### 6.3 Stretch Goals (v2 Roadmap)
-- [ ] CIS Google Cloud Benchmark mapping
+- [x] CIS Google Cloud Benchmark mapping
 - [ ] SOC2 / PCI-DSS compliance mapping
 - [ ] Scan history with trend charts (store in GCS)
 - [ ] Scheduled recurring scans (Cloud Scheduler)
@@ -578,17 +611,17 @@ Key dependencies:
 ## Success Criteria
 
 ### MVP (Phase 5 complete)
-- [ ] Tool deploys to Cloud Run via `./setup.sh` in < 10 minutes
-- [ ] Scans a single project with 125+ checks in < 5 minutes
-- [ ] All findings include severity, description, and fix command
-- [ ] Dashboard displays interactive charts and filterable table
-- [ ] Export to JSON and HTML works
-- [ ] GCS export works when configured
-- [ ] All checks use viewer-only permissions
-- [ ] Health score accurately reflects environment posture
+- [x] Tool deploys to Cloud Run via `./setup.sh` in < 10 minutes
+- [x] Scans a single project with 125+ checks in < 5 minutes
+- [x] All findings include severity, description, and fix command
+- [x] Dashboard displays interactive charts and filterable table
+- [x] Export to JSON and HTML works
+- [x] GCS export works when configured
+- [x] All checks use viewer-only permissions
+- [x] Health score accurately reflects environment posture
 
 ### Stretch (Phase 6)
-- [ ] CIS Benchmark compliance mapping
+- [x] CIS Benchmark compliance mapping
 - [ ] Scan history with trend visualization
 - [ ] < 30 minute scan for 50-project org
 - [ ] Community-contributed checks via plugin system

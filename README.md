@@ -3,7 +3,7 @@
 > **Audit your Google Cloud environment against 234 best-practice checks across 28 service areas.**
 > Viewer-only access. Actionable fix commands. Per-finding AI explanations via Vertex Gemini.
 
-**Democratized Reviewer** is a audit tool designed for Cloud practioners, DevOps security engineers, SREs, and cloud architects etc all related roles. It deploys as a serverless container on **Cloud Run**, scanning your organization or project using strictly **read-only** IAM role.
+**Democratized Reviewer** is an audit tool designed for cloud practitioners, DevOps and security engineers, SREs, cloud architects, and related roles. It deploys as a serverless container on **Cloud Run**, scanning your organization or project using strictly **read-only** IAM roles.
 
 ---
 

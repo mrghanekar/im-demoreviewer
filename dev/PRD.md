@@ -1,9 +1,18 @@
 # Democratized Reviewer — Product Requirements Document
 
-> **Version**: 1.0  
-> **Last Updated**: 2026-02-07  
-> **Status**: Draft  
+> **Version**: 1.1  
+> **Last Updated**: 2026-08-20  
+> **Status**: Shipped (v1) — this document is retained as the design record  
 > **Owner**: @aghanekar
+
+> **Implementation status (2026-08-20):** v1 is built and deployed. The
+> shipped product exceeds the targets below: 234 checks across 28 service
+> categories (vs. 200+ across 10 planned), exports in JSON/CSV/HTML/PDF,
+> per-finding AI explanations via Vertex AI Gemini, and compliance-control
+> mapping (CIS GCP v3.0, ISO/IEC 27001:2022, CERT-In 2022, DPDP 2023) — the
+> latter originally a v2 goal (G8). See `README.md` for the current feature
+> set, `docs/audit-coverage.md` for audit-scope coverage and limits, and
+> `dev/PLAN.md` for delivery status against the build plan.
 
 ---
 
