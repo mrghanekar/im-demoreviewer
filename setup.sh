@@ -881,6 +881,59 @@ ensure_build_permissions() {
   fi
 }
 
+# Snapshot + override constraints/iam.allowedPolicyMemberDomains at the
+# PROJECT level (allowAll), so allUsers can be granted run.invoker. Shared by
+# build_and_deploy (pre-deploy opt-in path) and maybe_grant_public_access
+# (post-deploy fix when the allUsers grant is rejected by the constraint).
+# Writes ORG_POLICY_STAMP so --remove knows to restore the original policy.
+apply_org_policy_override() {
+  # Snapshot the existing project-level policy first so --remove can restore
+  # it. prompt_configuration may have already taken one — don't clobber it.
+  if [[ ! -s "$ORG_POLICY_SNAPSHOT" ]]; then
+    gcloud org-policies describe "constraints/iam.allowedPolicyMemberDomains" \
+      --project="${DEPLOY_PROJECT}" --format=json > "$ORG_POLICY_SNAPSHOT" 2>/dev/null \
+      || echo "{}" > "$ORG_POLICY_SNAPSHOT"
+  fi
+
+  local policy_file rc=0
+  policy_file="$(mktemp -t dr-policy.XXXXXX.yaml)"
+  # NOTE: the policy `name` must be projects/<id>/policies/<constraint> with
+  # NO "constraints/" segment — including it makes set-policy reject the file.
+  # (An earlier version of this script had that bug and the override silently
+  # never applied, which is why the post-deploy allUsers grant kept failing.)
+  cat > "$policy_file" <<EOF
+name: projects/${DEPLOY_PROJECT}/policies/iam.allowedPolicyMemberDomains
+spec:
+  rules:
+  - allowAll: true
+EOF
+  gcloud org-policies set-policy "$policy_file" --project="${DEPLOY_PROJECT}" --quiet >/dev/null 2>&1 || rc=$?
+  rm -f "$policy_file"
+  if [[ $rc -eq 0 ]]; then
+    echo "true" > "$ORG_POLICY_STAMP"
+  fi
+  return $rc
+}
+
+# Grant allUsers → roles/run.invoker with retries. Retries matter after an
+# org-policy override: the new policy takes ~10-60s to propagate, during
+# which the grant still fails with FAILED_PRECONDITION.
+grant_all_users_invoker() {
+  local attempts="${1:-1}" attempt
+  for ((attempt=1; attempt<=attempts; attempt++)); do
+    if gcloud run services add-iam-policy-binding democratized-reviewer \
+        --member=allUsers --role=roles/run.invoker \
+        --region="${REGION}" --project="${DEPLOY_PROJECT}" --quiet >/dev/null 2>&1; then
+      return 0
+    fi
+    if (( attempt < attempts )); then
+      status_wait "Grant rejected — waiting for policy propagation (attempt ${attempt}/${attempts})..."
+      sleep 10
+    fi
+  done
+  return 1
+}
+
 build_and_deploy() {
   step "BUILD & DEPLOY TO CLOUD RUN"
 
@@ -927,16 +980,12 @@ build_and_deploy() {
 
   # Org policy override (only if user explicitly opted in)
   if [[ "$OVERRIDE_ORG_POLICY" == true ]]; then
-    local policy_file
-    policy_file="$(mktemp -t dr-policy.XXXXXX.yaml)"
-    cat > "$policy_file" <<EOF
-name: projects/${DEPLOY_PROJECT}/policies/constraints/iam.allowedPolicyMemberDomains
-spec:
-  rules:
-  - allowAll: true
-EOF
-    gcloud org-policies set-policy "$policy_file" --project="${DEPLOY_PROJECT}" --quiet >/dev/null 2>&1 || true
-    rm -f "$policy_file"
+    if apply_org_policy_override; then
+      status_done "Org policy override applied (project-level allowAll)"
+    else
+      warn "Could not apply the org-policy override — the allUsers grant below"
+      warn "will likely fail. Needs roles/orgpolicy.policyAdmin on the org."
+    fi
   fi
 
   # State is in-memory (ScanStore, WebSocket queues, rate limiter).
@@ -975,11 +1024,19 @@ EOF
       exit 1
   fi
 
-  # Public access (only when the user explicitly overrode the policy)
+  # Public access (only when the user explicitly overrode the policy).
+  # Retry: the override applied just above can take ~10-60s to propagate,
+  # during which this grant still fails with FAILED_PRECONDITION.
   if [[ "$OVERRIDE_ORG_POLICY" == true ]]; then
-     gcloud run services add-iam-policy-binding democratized-reviewer \
-      --member="allUsers" --role="roles/run.invoker" \
-      --region="${REGION}" --project="${DEPLOY_PROJECT}" --quiet >/dev/null 2>&1 || true
+    if grant_all_users_invoker 6; then
+      echo ""
+      status_done "Public access granted (allUsers → roles/run.invoker)"
+    else
+      echo ""
+      warn "Could not grant allUsers → roles/run.invoker even after retries."
+      warn "The post-deploy PUBLIC ACCESS phase will offer a check-and-fix."
+      IS_PUBLIC=false
+    fi
   fi
 
   # Always grant invoker to the deploying user so they can reach the service via IAM
@@ -1028,13 +1085,49 @@ maybe_grant_public_access() {
         --region="${REGION}" --project="${DEPLOY_PROJECT}" --quiet 2>&1 >/dev/null); then
     echo ""
     status_done "IAM binding added. Waiting for propagation..."
+  elif echo "$_err" | grep -qiE "allowedPolicyMemberDomains|permitted customer|FAILED_PRECONDITION"; then
+    # CHECK: the grant was rejected by domain-restricted sharing
+    # (constraints/iam.allowedPolicyMemberDomains, usually inherited from the
+    # org). Symptom users hit in the browser: "Error: Forbidden — Your client
+    # does not have permission to get URL /".
+    # FIX: apply a PROJECT-level override (allowAll), wait out propagation,
+    # and retry the grant — no re-run of setup.sh needed.
+    echo ""
+    status_fail "Grant blocked by org policy iam.allowedPolicyMemberDomains (domain-restricted sharing)."
+    info "Fix available: apply a PROJECT-level override (allowAll) on ${DEPLOY_PROJECT},"
+    info "then retry the grant. Scope is this project only — the org policy is untouched"
+    info "elsewhere, and ./setup.sh --remove restores the original policy."
+    warn "Requires roles/orgpolicy.policyAdmin (granted on the organization)."
+    if ! confirm "Apply the org-policy override and retry the public grant?"; then
+      info "Keeping service private. Use the proxy command above to access."
+      return
+    fi
+    status_wait "Applying project-level org-policy override..."
+    if ! apply_org_policy_override; then
+      echo ""
+      status_fail "Could not apply the override. Your account likely lacks"
+      status_fail "roles/orgpolicy.policyAdmin. Ask an Org Admin to run:"
+      echo -e "     ${P_DIM}printf 'name: projects/${DEPLOY_PROJECT}/policies/iam.allowedPolicyMemberDomains\\nspec:\\n  rules:\\n  - allowAll: true\\n' > /tmp/dr-drs.yaml && gcloud org-policies set-policy /tmp/dr-drs.yaml${NC}"
+      echo -e "     then: ${P_DIM}gcloud run services add-iam-policy-binding democratized-reviewer --member=allUsers --role=roles/run.invoker --region=${REGION} --project=${DEPLOY_PROJECT}${NC}"
+      return
+    fi
+    echo ""
+    status_done "Override applied. Retrying grant (policy propagation can take ~10-60s)..."
+    if grant_all_users_invoker 6; then
+      echo ""
+      status_done "IAM binding added. Waiting for propagation..."
+    else
+      echo ""
+      status_fail "Grant still failing after ~60s of retries. Propagation can occasionally"
+      status_fail "take longer — retry manually in a few minutes:"
+      echo -e "     ${P_DIM}gcloud run services add-iam-policy-binding democratized-reviewer --member=allUsers --role=roles/run.invoker --region=${REGION} --project=${DEPLOY_PROJECT}${NC}"
+      return
+    fi
   else
     echo ""
-    status_fail "Could not grant allUsers (likely org policy restriction):"
+    status_fail "Could not grant allUsers:"
     echo "$_err" | head -c 400 | sed 's/^/       /'
     echo ""
-    warn "If the org enforces iam.allowedPolicyMemberDomains, re-run ./setup.sh"
-    warn "and accept the org-policy override prompt in Phase 02."
     return
   fi
 

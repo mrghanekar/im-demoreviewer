@@ -45,7 +45,7 @@ chmod +x setup.sh
     *   **Build from source:** Cloud Build runs on every `./setup.sh` and produces an image into your project's Artifact Registry. Takes ~4–5 minutes on a cold build. Guarantees the deployed image always matches the code in your clone.
 4.  Deploys to Cloud Run (private by default, single instance).
 5.  Grants the deploying user `roles/run.invoker` so you can reach the service immediately.
-6.  **Optional public-access prompt:** after the deploy succeeds, asks if you want to grant `allUsers → roles/run.invoker` so anyone with the URL can browse the dashboard. Default is **No** (keep it private; use `gcloud run services proxy`). If you say yes, the script polls `/api/v1/health` with curl until it returns `200` (handles IAM propagation lag, ~10–60s) so you know access is live before the script exits.
+6.  **Optional public-access prompt:** after the deploy succeeds, asks if you want to grant `allUsers → roles/run.invoker` so anyone with the URL can browse the dashboard. Default is **No** (keep it private; use `gcloud run services proxy`). If you say yes, the script polls `/api/v1/health` with curl until it returns `200` (handles IAM propagation lag, ~10–60s) so you know access is live before the script exits. If the grant is rejected by the `iam.allowedPolicyMemberDomains` org policy (domain-restricted sharing — the browser symptom is `Error: Forbidden`), the script detects it and offers to fix it in place: it snapshots the current policy, applies a project-level `allowAll` override, retries the grant with propagation backoff, and then verifies. `./setup.sh --remove` restores the snapshotted policy.
 
 ### 2. Access the Dashboard
 
