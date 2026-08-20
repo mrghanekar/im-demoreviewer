@@ -28,8 +28,8 @@ Run the setup script from **Google Cloud Shell** or your local terminal (require
 
 ```bash
 git clone --depth 1 --filter=blob:none --sparse \
-  https://gitlab.com/aghanekar/democratized-reviewer.git democratized-reviewer
-cd democratized-reviewer
+  https://github.com/mrghanekar/im-demoreviewer.git im-demoreviewer
+cd im-demoreviewer
 git sparse-checkout set backend frontend
 ```
 ```bash
@@ -511,12 +511,12 @@ Billing:    BIL-011 BigQuery LOGICAL billing         |  BIL-012 idle GKE node po
 | Results page shows yellow "No progress in the last 60 seconds" banner | Live scan-event stream is silent. Either the BackgroundTask died on a Cloud Run instance restart, or the scan is stuck on a slow / hung gcloud call | Check Cloud Run logs (`gcloud run services logs read democratized-reviewer --region=REGION --limit=50`). If logs show errors, fix them; if logs show nothing, the task died — cancel via `← New Scan` and re-launch |
 | Cloud Run OOMs during scan (`Memory limit exceeded`) | The default deploy uses 2Gi which is enough for typical scans. Very large orgs (1000+ projects) can still exhaust it | Bump memory: `gcloud run services update democratized-reviewer --memory=4Gi --region=REGION`. Or lower `DR_MAX_CONCURRENT_CHECKS` from 5 to 3 |
 | Phase 03 shows "N of 6 role bindings failed" | The account running `setup.sh` lacks `roles/resourcemanager.projectIamAdmin` (or `roles/owner`) on the deploy project, so it can't grant viewer roles to the SA | Ask a Project Owner to grant you `roles/resourcemanager.projectIamAdmin` on the deploy project and re-run `./setup.sh`. The script's failure message prints the exact `gcloud projects add-iam-policy-binding` commands to hand them if they prefer to grant directly. |
-| Cloud Build fails with `error TS2304: Cannot find name 'useState'` (or similar TS error) | Frontend type error in the source. If you didn't edit anything, your clone may be behind a known-good commit | `cd ~/democratized-reviewer && git pull origin main && git log -1 --oneline` — re-run `./setup.sh`. If the error persists after pulling, file an issue. |
+| Cloud Build fails with `error TS2304: Cannot find name 'useState'` (or similar TS error) | Frontend type error in the source. If you didn't edit anything, your clone may be behind a known-good commit | `cd ~/im-demoreviewer && git pull origin main && git log -1 --oneline` — re-run `./setup.sh`. If the error persists after pulling, file an issue. |
 
 ## Project Structure
 
 ```
-democratized-reviewer/
+im-demoreviewer/
 ├── backend/                 # FastAPI application
 │   ├── api/                 # API routes and middleware
 │   ├── checks/              # Logic for 234 GCP checks

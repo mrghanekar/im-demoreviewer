@@ -251,13 +251,13 @@ User clicks a finding
 | **Task Queue** | FastAPI BackgroundTasks + asyncio | Lightweight, no external deps |
 | **Container** | Docker (multi-stage build) | Frontend + Backend in single container |
 | **Deployment** | Cloud Run (gen2) | Serverless, scales to zero, easy setup |
-| **CI/CD** | GitLab CI (existing) + Cloud Build | Matches existing repo setup |
+| **CI/CD** | Cloud Build (repo hosted on GitHub) | Matches existing repo setup |
 | **Export** | GCS + in-memory JSON | Session results + optional persistence |
 
 ### Directory Structure
 
 ```
-democratized-reviewer/
+im-demoreviewer/
 ├── setup.sh                        # Cloud Shell setup script
 ├── Dockerfile                      # Multi-stage build
 ├── docker-compose.yml              # Local development
@@ -726,8 +726,8 @@ The setup script is the primary distribution mechanism:
 
 ```bash
 # User runs in Cloud Shell:
-git clone <repo-url>
-cd democratized-reviewer
+git clone https://github.com/mrghanekar/im-demoreviewer.git
+cd im-demoreviewer
 chmod +x setup.sh
 ./setup.sh
 ```
@@ -924,7 +924,7 @@ class Check:
 - [ ] Error handling & edge cases
 - [ ] Performance optimization
 - [ ] Documentation (README, user guide)
-- [ ] GitLab CI pipeline
+- [ ] CI pipeline (repo now on GitHub)
 
 ### Phase 6: Compliance & Advanced (Future)
 - [ ] CIS Benchmark mapping

@@ -14,7 +14,7 @@ export function Header() {
 
         <nav className="flex items-center gap-6">
           <a
-            href="https://gitlab.com/aghanekar/democratized-reviewer"
+            href="https://github.com/mrghanekar/im-demoreviewer"
             target="_blank"
             rel="noopener noreferrer"
             className="text-[--color-text-secondary] hover:text-[--color-text-primary] transition-colors"
