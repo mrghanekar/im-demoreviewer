@@ -143,6 +143,11 @@ DATA_BUCKET="${DATA_BUCKET:-}"
 # --remove revokes exactly what was granted, no more and no less.
 PROJECT_ROLES_GRANTED="${PROJECT_ROLES_GRANTED:-}"
 ORG_ROLES_GRANTED="${ORG_ROLES_GRANTED:-}"
+# Cloud Build's build identity (usually the compute default SA on newer
+# projects) + whether WE granted it roles/cloudbuild.builds.builder — so
+# --remove only revokes a grant this script actually made.
+BUILD_SA_EMAIL="${BUILD_SA_EMAIL:-}"
+BUILD_SA_ROLE_GRANTED="${BUILD_SA_ROLE_GRANTED:-false}"
 
 info()    { echo -e "${P_SECONDARY}   >>${NC} ${1}"; }
 warn()    { echo -e "${P_WARN}   [!] WARNING:${NC} ${1}"; }
@@ -161,6 +166,8 @@ DR_STATE_BUCKET='${DATA_BUCKET}'
 DR_STATE_ORG_ID='${ORG_ID}'
 DR_STATE_PROJECT_ROLES='${PROJECT_ROLES_GRANTED}'
 DR_STATE_ORG_ROLES='${ORG_ROLES_GRANTED}'
+DR_STATE_BUILD_SA='${BUILD_SA_EMAIL}'
+DR_STATE_BUILD_SA_ROLE_GRANTED='${BUILD_SA_ROLE_GRANTED}'
 EOF
 }
 
@@ -791,6 +798,89 @@ EOF
   save_deploy_state
 }
 
+# Since mid-2024, Cloud Build in new projects runs builds as the COMPUTE
+# ENGINE DEFAULT service account, not the legacy <num>@cloudbuild one. Orgs
+# that disable automatic role grants for default SAs (common in demo/Argolis
+# orgs via constraints/iam.automaticIamGrantsForDefaultServiceAccounts) leave
+# that SA with ZERO roles — so `gcloud builds submit` dies before the first
+# build step, with a confusing storage.objects.get 403 on its own source
+# tarball in gs://<project>_cloudbuild. Catch that here, BEFORE uploading
+# source, and offer the documented fix: grant the build SA
+# roles/cloudbuild.builds.builder (source read + log write + AR push).
+ensure_build_permissions() {
+  info "Verifying Cloud Build service account permissions..."
+
+  local project_number
+  project_number=$(gcloud projects describe "${DEPLOY_PROJECT}" \
+    --format="value(projectNumber)" 2>/dev/null || echo "")
+  if [[ -z "$project_number" ]]; then
+    warn "Could not read project number — skipping build-permission preflight."
+    return 0
+  fi
+
+  # Ask Cloud Build which SA it will actually use (newer gcloud only). The
+  # API returns a full resource name (projects/.../serviceAccounts/<email>);
+  # strip to the email. Older gcloud lacks the command — assume the modern
+  # default (compute default SA).
+  local build_sa
+  build_sa=$(gcloud builds get-default-service-account \
+    --project="${DEPLOY_PROJECT}" \
+    --format="value(serviceAccountEmail)" 2>/dev/null || echo "")
+  build_sa="${build_sa##*/}"
+  if [[ -z "$build_sa" ]]; then
+    build_sa="${project_number}-compute@developer.gserviceaccount.com"
+  fi
+  BUILD_SA_EMAIL="$build_sa"
+
+  # The legacy Cloud Build SA carries the builder role implicitly.
+  if [[ "$build_sa" == "${project_number}@cloudbuild.gserviceaccount.com" ]]; then
+    status_done "Build runs as the legacy Cloud Build SA — permissions built in."
+    return 0
+  fi
+
+  local roles
+  roles=$(gcloud projects get-iam-policy "${DEPLOY_PROJECT}" \
+    --flatten="bindings[].members" \
+    --filter="bindings.members:serviceAccount:${build_sa}" \
+    --format="value(bindings.role)" 2>/dev/null || echo "")
+
+  if echo "$roles" | grep -qE '^roles/(owner|editor|cloudbuild\.builds\.builder)$'; then
+    status_done "Build SA has sufficient permissions (${build_sa})"
+    return 0
+  fi
+
+  warn "Cloud Build will run as ${build_sa}, which lacks"
+  warn "the permissions a build needs (read staged source from GCS, write"
+  warn "build logs, push the image to Artifact Registry)."
+  info "Typical cause: org policy disables automatic role grants for default"
+  info "service accounts, so the compute default SA has no roles at all."
+  info "Fix: grant it roles/cloudbuild.builds.builder — the role Google"
+  info "documents for exactly this build identity. It is scoped to builds"
+  info "only and can be revoked at any time (./setup.sh --remove does so)."
+  echo ""
+
+  if ! confirm "Grant roles/cloudbuild.builds.builder to ${build_sa}?"; then
+    warn "Skipping. The build will very likely fail with a storage 403."
+    warn "If it does, grant manually and re-run:"
+    echo -e "     ${P_DIM}gcloud projects add-iam-policy-binding ${DEPLOY_PROJECT} --member=serviceAccount:${build_sa} --role=roles/cloudbuild.builds.builder --condition=None${NC}"
+    return 0
+  fi
+
+  if gcloud projects add-iam-policy-binding "${DEPLOY_PROJECT}" \
+      --member="serviceAccount:${build_sa}" \
+      --role="roles/cloudbuild.builds.builder" \
+      --condition=None --quiet >/dev/null 2>&1; then
+    status_done "Granted roles/cloudbuild.builds.builder to ${build_sa}"
+    BUILD_SA_ROLE_GRANTED=true
+    save_deploy_state
+  else
+    status_fail "Could not grant the role (you likely lack IAM admin on ${DEPLOY_PROJECT})."
+    echo -e "${P_WARN}   Fix:${NC} ask a Project Owner to run:"
+    echo -e "     ${P_DIM}gcloud projects add-iam-policy-binding ${DEPLOY_PROJECT} --member=serviceAccount:${build_sa} --role=roles/cloudbuild.builds.builder --condition=None${NC}"
+    warn "Continuing — the build will fail until this is granted."
+  fi
+}
+
 build_and_deploy() {
   step "BUILD & DEPLOY TO CLOUD RUN"
 
@@ -800,6 +890,8 @@ build_and_deploy() {
   fi
   
   echo -e "${P_PRIMARY}   >> Deployment parameters initialized.${NC}"
+
+  ensure_build_permissions
 
   # Always build fresh from the source in this clone. The previous pre-built
   # path pulled an image from registry.gitlab.com — fragile because the
@@ -1118,6 +1210,9 @@ remove_deployment() {
   echo -e "     - GCS Bucket: ${DATA_BUCKET}"
   echo -e "     - Service Account: ${SA_EMAIL}"
   echo -e "     - Project IAM bindings for the service account (${#PROJECT_ROLES[@]} roles)"
+  if [[ "${DR_STATE_BUILD_SA_ROLE_GRANTED:-false}" == "true" && -n "${DR_STATE_BUILD_SA:-}" ]]; then
+    echo -e "     - roles/cloudbuild.builds.builder granted to build SA ${DR_STATE_BUILD_SA}"
+  fi
   if [[ -n "$ORG_ID" && ${#ORG_ROLES[@]} -gt 0 ]]; then
     echo -e "     - Org-level IAM bindings on org ${ORG_ID} (asked separately below)"
   fi
@@ -1170,6 +1265,22 @@ remove_deployment() {
     for role in "${_REVOKE_FAILED[@]}"; do
       echo -e "     - ${role}"
     done
+  fi
+
+  # Revoke the Cloud Build SA grant ONLY if the deploy record says this
+  # script made it — the compute default SA may carry the role for reasons
+  # unrelated to us, and revoking it then would break other builds.
+  if [[ "${DR_STATE_BUILD_SA_ROLE_GRANTED:-false}" == "true" && -n "${DR_STATE_BUILD_SA:-}" ]]; then
+    if gcloud projects remove-iam-policy-binding "${DEPLOY_PROJECT}" \
+        --member="serviceAccount:${DR_STATE_BUILD_SA}" \
+        --role="roles/cloudbuild.builds.builder" \
+        --condition=None --quiet >/dev/null 2>&1; then
+      status_done "Revoked roles/cloudbuild.builds.builder from ${DR_STATE_BUILD_SA}"
+    else
+      warn "Could not revoke roles/cloudbuild.builds.builder from ${DR_STATE_BUILD_SA}"
+      warn "(binding already gone, or you lack IAM admin). Remove manually if needed:"
+      echo -e "       ${P_DIM}gcloud projects remove-iam-policy-binding ${DEPLOY_PROJECT} --member=serviceAccount:${DR_STATE_BUILD_SA} --role=roles/cloudbuild.builds.builder --condition=None${NC}"
+    fi
   fi
 
   # Org-scope bindings widen the blast radius beyond this project, so they
